@@ -1,0 +1,440 @@
+[
+  {
+    "scryfallId": "a9738cda-adb1-47fb-9f4c-ecd930228c4d",
+    "name": "Ragavan, Nimble Pilferer",
+    "setName": "Modern Horizons 2",
+    "setCode": "mh2",
+    "collectorNumber": "138",
+    "imageUrl": "/images/cards/ragavan-nimble-pilferer.jpg",
+    "artUrl": "/images/cards/ragavan-nimble-pilferer-art.jpg",
+    "rarity": "mythic",
+    "colors": [
+      "R"
+    ],
+    "typeLine": "Legendary Creature — Monkey Pirate",
+    "manaCost": "{R}",
+    "oracleText": "Whenever Ragavan deals combat damage to a player, create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.\nDash {1}{R} (You may cast this spell for its dash cost. If you do, it gains haste, and it's returned from the battlefield to its owner's hand at the beginning of the next end step.)",
+    "price": 4990,
+    "quantity": 6,
+    "featured": true,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Modern favourites"
+    ]
+  },
+  {
+    "scryfallId": "d5806e68-1054-458e-866d-1f2470f682b2",
+    "name": "The One Ring",
+    "setName": "The Lord of the Rings: Tales of Middle-earth",
+    "setCode": "ltr",
+    "collectorNumber": "246",
+    "imageUrl": "/images/cards/the-one-ring.jpg",
+    "artUrl": "/images/cards/the-one-ring-art.jpg",
+    "rarity": "mythic",
+    "colors": [],
+    "typeLine": "Legendary Artifact",
+    "manaCost": "{4}",
+    "oracleText": "Indestructible\nWhen The One Ring enters, if you cast it, you gain protection from everything until your next turn.\nAt the beginning of your upkeep, you lose 1 life for each burden counter on The One Ring.\n{T}: Put a burden counter on The One Ring, then draw a card for each burden counter on The One Ring.",
+    "price": 8990,
+    "quantity": 4,
+    "featured": true,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Commander staples"
+    ]
+  },
+  {
+    "scryfallId": "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
+    "name": "Sheoldred, the Apocalypse",
+    "setName": "Dominaria United",
+    "setCode": "dmu",
+    "collectorNumber": "107",
+    "imageUrl": "/images/cards/sheoldred-the-apocalypse.jpg",
+    "artUrl": "/images/cards/sheoldred-the-apocalypse-art.jpg",
+    "rarity": "mythic",
+    "colors": [
+      "B"
+    ],
+    "typeLine": "Legendary Creature — Phyrexian Praetor",
+    "manaCost": "{2}{B}{B}",
+    "oracleText": "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, they lose 2 life.",
+    "price": 7490,
+    "quantity": 3,
+    "featured": true,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Modern favourites",
+      "Commander staples"
+    ]
+  },
+  {
+    "scryfallId": "7c024bae-5631-4e20-ac69-df392ac9e109",
+    "name": "Orcish Bowmasters",
+    "setName": "The Lord of the Rings: Tales of Middle-earth",
+    "setCode": "ltr",
+    "collectorNumber": "103",
+    "imageUrl": "/images/cards/orcish-bowmasters.jpg",
+    "artUrl": "/images/cards/orcish-bowmasters-art.jpg",
+    "rarity": "rare",
+    "colors": [
+      "B"
+    ],
+    "typeLine": "Creature — Orc Archer",
+    "manaCost": "{1}{B}",
+    "oracleText": "Flash\nWhen this creature enters and whenever an opponent draws a card except the first one they draw in each of their draw steps, this creature deals 1 damage to any target. Then amass Orcs 1.",
+    "price": 3990,
+    "quantity": 8,
+    "featured": true,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Modern favourites",
+      "Commander staples"
+    ]
+  },
+  {
+    "scryfallId": "f3537373-ef54-4578-9d05-6216420ee349",
+    "name": "Esper Sentinel",
+    "setName": "Modern Horizons 2",
+    "setCode": "mh2",
+    "collectorNumber": "12",
+    "imageUrl": "/images/cards/esper-sentinel.jpg",
+    "artUrl": "/images/cards/esper-sentinel-art.jpg",
+    "rarity": "rare",
+    "colors": [
+      "W"
+    ],
+    "typeLine": "Artifact Creature — Human Soldier",
+    "manaCost": "{W}",
+    "oracleText": "Whenever an opponent casts their first noncreature spell each turn, draw a card unless that player pays {X}, where X is this creature's power.",
+    "price": 3490,
+    "quantity": 12,
+    "featured": true,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Commander staples"
+    ]
+  },
+  {
+    "scryfallId": "46ca0b66-a000-4483-b916-f5b89e710244",
+    "name": "Sol Ring",
+    "setName": "Commander Masters",
+    "setCode": "cmm",
+    "collectorNumber": "410",
+    "imageUrl": "/images/cards/sol-ring.jpg",
+    "artUrl": "/images/cards/sol-ring-art.jpg",
+    "rarity": "uncommon",
+    "colors": [],
+    "typeLine": "Artifact",
+    "manaCost": "{1}",
+    "oracleText": "{T}: Add {C}{C}.",
+    "price": 350,
+    "quantity": 24,
+    "featured": true,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Commander staples",
+      "Under $5"
+    ]
+  },
+  {
+    "scryfallId": "e768c957-3a1f-42f5-853a-96942f645df5",
+    "name": "Lightning Bolt",
+    "setName": "Magic 2011",
+    "setCode": "m11",
+    "collectorNumber": "149",
+    "imageUrl": "/images/cards/lightning-bolt.jpg",
+    "artUrl": "/images/cards/lightning-bolt-art.jpg",
+    "rarity": "common",
+    "colors": [
+      "R"
+    ],
+    "typeLine": "Instant",
+    "manaCost": "{R}",
+    "oracleText": "Lightning Bolt deals 3 damage to any target.",
+    "price": 250,
+    "quantity": 20,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Modern favourites",
+      "Under $5"
+    ]
+  },
+  {
+    "scryfallId": "c77ebe57-ea56-4300-b293-6260c4c01a43",
+    "name": "Cyclonic Rift",
+    "setName": "Commander Masters",
+    "setCode": "cmm",
+    "collectorNumber": "84",
+    "imageUrl": "/images/cards/cyclonic-rift.jpg",
+    "artUrl": "/images/cards/cyclonic-rift-art.jpg",
+    "rarity": "rare",
+    "colors": [
+      "U"
+    ],
+    "typeLine": "Instant",
+    "manaCost": "{1}{U}",
+    "oracleText": "Return target nonland permanent you don't control to its owner's hand.\nOverload {6}{U} (You may cast this spell for its overload cost. If you do, change \"target\" in its text to \"each.\")",
+    "price": 4490,
+    "quantity": 5,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Commander staples"
+    ]
+  },
+  {
+    "scryfallId": "42ecba4b-9624-428f-a8af-dd88139ab13c",
+    "name": "Swords to Plowshares",
+    "setName": "Commander Masters",
+    "setCode": "cmm",
+    "collectorNumber": "841",
+    "imageUrl": "/images/cards/swords-to-plowshares.jpg",
+    "artUrl": "/images/cards/swords-to-plowshares-art.jpg",
+    "rarity": "uncommon",
+    "colors": [
+      "W"
+    ],
+    "typeLine": "Instant",
+    "manaCost": "{W}",
+    "oracleText": "Exile target creature. Its controller gains life equal to its power.",
+    "price": 290,
+    "quantity": 16,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Commander staples",
+      "Under $5"
+    ]
+  },
+  {
+    "scryfallId": "483fa1cb-1e35-44f2-a143-98c0f107f5ca",
+    "name": "Teferi's Protection",
+    "setName": "Double Masters 2022",
+    "setCode": "2x2",
+    "collectorNumber": "32",
+    "imageUrl": "/images/cards/teferi-s-protection.jpg",
+    "artUrl": "/images/cards/teferi-s-protection-art.jpg",
+    "rarity": "rare",
+    "colors": [
+      "W"
+    ],
+    "typeLine": "Instant",
+    "manaCost": "{2}{W}",
+    "oracleText": "Until your next turn, your life total can't change and you gain protection from everything. All permanents you control phase out. (While they're phased out, they're treated as though they don't exist. They phase in before you untap during your untap step.)\nExile Teferi's Protection.",
+    "price": 4990,
+    "quantity": 4,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Commander staples"
+    ]
+  },
+  {
+    "scryfallId": "ba629ca8-a368-4282-8a61-9bf6a5c217f0",
+    "name": "Valley Questcaller",
+    "setName": "Bloomburrow",
+    "setCode": "blb",
+    "collectorNumber": "36",
+    "imageUrl": "/images/cards/valley-questcaller.jpg",
+    "artUrl": "/images/cards/valley-questcaller-art.jpg",
+    "rarity": "rare",
+    "colors": [
+      "W"
+    ],
+    "typeLine": "Creature — Rabbit Warrior",
+    "manaCost": "{1}{W}",
+    "oracleText": "Whenever one or more other Rabbits, Bats, Birds, and/or Mice you control enter, scry 1.\nOther Rabbits, Bats, Birds, and Mice you control get +1/+1.",
+    "price": 390,
+    "quantity": 9,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "New arrivals",
+      "Under $5"
+    ]
+  },
+  {
+    "scryfallId": "52eef0d6-24b7-40b7-8403-e8e863d0cd55",
+    "name": "Bristly Bill, Spine Sower",
+    "setName": "Outlaws of Thunder Junction",
+    "setCode": "otj",
+    "collectorNumber": "157",
+    "imageUrl": "/images/cards/bristly-bill-spine-sower.jpg",
+    "artUrl": "/images/cards/bristly-bill-spine-sower-art.jpg",
+    "rarity": "mythic",
+    "colors": [
+      "G"
+    ],
+    "typeLine": "Legendary Creature — Plant Druid",
+    "manaCost": "{1}{G}",
+    "oracleText": "Landfall — Whenever a land you control enters, put a +1/+1 counter on target creature.\n{3}{G}{G}: Double the number of +1/+1 counters on each creature you control.",
+    "price": 2290,
+    "quantity": 6,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Commander staples"
+    ]
+  },
+  {
+    "scryfallId": "fd00d56a-86bd-41d8-82b6-975404ef8067",
+    "name": "Ulamog, the Defiler",
+    "setName": "Modern Horizons 3",
+    "setCode": "mh3",
+    "collectorNumber": "15",
+    "imageUrl": "/images/cards/ulamog-the-defiler.jpg",
+    "artUrl": "/images/cards/ulamog-the-defiler-art.jpg",
+    "rarity": "mythic",
+    "colors": [],
+    "typeLine": "Legendary Creature — Eldrazi",
+    "manaCost": "{10}",
+    "oracleText": "When you cast this spell, target opponent exiles the top half of their library, rounded up.\nWard—Sacrifice two permanents.\nUlamog enters with a number of +1/+1 counters on it equal to the greatest mana value among cards in exile.\nUlamog has annihilator X, where X is the number of +1/+1 counters on it.",
+    "price": 3990,
+    "quantity": 3,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "New arrivals",
+      "Commander staples"
+    ]
+  },
+  {
+    "scryfallId": "68924203-c3d9-41ce-8ca8-c6dd491eb3ca",
+    "name": "Psychic Frog",
+    "setName": "Modern Horizons 3",
+    "setCode": "mh3",
+    "collectorNumber": "199",
+    "imageUrl": "/images/cards/psychic-frog.jpg",
+    "artUrl": "/images/cards/psychic-frog-art.jpg",
+    "rarity": "rare",
+    "colors": [
+      "B",
+      "U"
+    ],
+    "typeLine": "Creature — Frog",
+    "manaCost": "{U}{B}",
+    "oracleText": "Whenever this creature deals combat damage to a player or planeswalker, draw a card.\nDiscard a card: Put a +1/+1 counter on this creature.\nExile three cards from your graveyard: This creature gains flying until end of turn.",
+    "price": 2490,
+    "quantity": 8,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Modern favourites",
+      "New arrivals"
+    ]
+  },
+  {
+    "scryfallId": "05d08ff1-edcc-4c76-96e0-683b3da36ebb",
+    "name": "Overlord of the Hauntwoods",
+    "setName": "Duskmourn: House of Horror",
+    "setCode": "dsk",
+    "collectorNumber": "194",
+    "imageUrl": "/images/cards/overlord-of-the-hauntwoods.jpg",
+    "artUrl": "/images/cards/overlord-of-the-hauntwoods-art.jpg",
+    "rarity": "mythic",
+    "colors": [
+      "G"
+    ],
+    "typeLine": "Enchantment Creature — Avatar Horror",
+    "manaCost": "{3}{G}{G}",
+    "oracleText": "Impending 4—{1}{G}{G} (If you cast this spell for its impending cost, it enters with four time counters and isn't a creature until the last is removed. At the beginning of your end step, remove a time counter from it.)\nWhenever this permanent enters or attacks, create a tapped colorless land token named Everywhere that is every basic land type.",
+    "price": 1990,
+    "quantity": 7,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "New arrivals"
+    ]
+  },
+  {
+    "scryfallId": "55a14f30-4ff9-4472-90a6-c3139f1c18e5",
+    "name": "Kaito, Bane of Nightmares",
+    "setName": "Duskmourn: House of Horror",
+    "setCode": "dsk",
+    "collectorNumber": "220",
+    "imageUrl": "/images/cards/kaito-bane-of-nightmares.jpg",
+    "artUrl": "/images/cards/kaito-bane-of-nightmares-art.jpg",
+    "rarity": "mythic",
+    "colors": [
+      "B",
+      "U"
+    ],
+    "typeLine": "Legendary Planeswalker — Kaito",
+    "manaCost": "{2}{U}{B}",
+    "oracleText": "Ninjutsu {1}{U}{B} ({1}{U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nDuring your turn, as long as Kaito has one or more loyalty counters on him, he's a 3/4 Ninja creature and has hexproof.\n+1: You get an emblem with \"Ninjas you control get +1/+1.\"\n0: Surveil 2. Then draw a card for each opponent who lost life this turn.\n−2: Tap target creature. Put two stun counters on it.",
+    "price": 1290,
+    "quantity": 8,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "New arrivals"
+    ]
+  },
+  {
+    "scryfallId": "6a0b230b-d391-4998-a3f7-7b158a0ec2cd",
+    "name": "Llanowar Elves",
+    "setName": "Foundations",
+    "setCode": "fdn",
+    "collectorNumber": "227",
+    "imageUrl": "/images/cards/llanowar-elves.jpg",
+    "artUrl": "/images/cards/llanowar-elves-art.jpg",
+    "rarity": "common",
+    "colors": [
+      "G"
+    ],
+    "typeLine": "Creature — Elf Druid",
+    "manaCost": "{G}",
+    "oracleText": "{T}: Add {G}.",
+    "price": 90,
+    "quantity": 28,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Under $5",
+      "New arrivals"
+    ]
+  },
+  {
+    "scryfallId": "31b60531-3d33-4e66-923a-29008716b15c",
+    "name": "Quilled Greatwurm",
+    "setName": "Foundations",
+    "setCode": "fdn",
+    "collectorNumber": "111",
+    "imageUrl": "/images/cards/quilled-greatwurm.jpg",
+    "artUrl": "/images/cards/quilled-greatwurm-art.jpg",
+    "rarity": "mythic",
+    "colors": [
+      "G"
+    ],
+    "typeLine": "Creature — Wurm",
+    "manaCost": "{4}{G}{G}",
+    "oracleText": "Trample\nWhenever a creature you control deals combat damage during your turn, put that many +1/+1 counters on it. (It must survive to get the counters.)\nYou may cast this card from your graveyard by removing six counters from among creatures you control in addition to paying its other costs.",
+    "price": 390,
+    "quantity": 13,
+    "featured": false,
+    "condition": "Near mint",
+    "finish": "Non-foil",
+    "categories": [
+      "Under $5",
+      "New arrivals"
+    ]
+  }
+]

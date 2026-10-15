@@ -1,0 +1,8 @@
+import { CONDITIONS, FINISHES } from "./types";
+export const isUUID = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+export function validateStock(value: unknown): number { if (!Number.isInteger(value) || Number(value) < 0 || Number(value) > 100000) throw new Error("Quantity must be a whole number between 0 and 100,000."); return Number(value); }
+export function validatePrice(value: unknown): number { if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 10000000) throw new Error("Price must be between $0.01 and $100,000 AUD."); return Number(value); }
+export function validateVariant(condition: unknown, finish: unknown) { if (!CONDITIONS.includes(String(condition))) throw new Error("Choose a valid card condition."); if (!FINISHES.includes(String(finish))) throw new Error("Choose a valid card finish."); }
+export function validEmail(email: unknown): email is string { return typeof email === "string" && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+export function textField(value: unknown, label: string, max = 120): string { if (typeof value !== "string" || !value.trim() || value.trim().length > max) throw new Error(`${label} is required (up to ${max} characters).`); return value.trim(); }
+export async function readBody(request: Request) { const text = await request.text(); if (text.length > 2000000) throw new Error("This request is too large. Please use a smaller file."); try { const data = JSON.parse(text); if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error(); return data as Record<string, unknown>; } catch { throw new Error("Please send valid JSON data."); } }
