@@ -175,22 +175,23 @@ export function CatalogueView({ products, collections, initialFilters, renderCar
             <h4>Colour</h4>
             <div className="colour-filters">
               {[
-                { code: "W", name: "White", symbol: "☀" }, 
-                { code: "U", name: "Blue", symbol: "◈" }, 
-                { code: "B", name: "Black", symbol: "♠" }, 
-                { code: "R", name: "Red", symbol: "♨" }, 
-                { code: "G", name: "Green", symbol: "♣" }, 
-                { code: "C", name: "Colourless", symbol: "◇" }
+                { code: "W", name: "White" },
+                { code: "U", name: "Blue" },
+                { code: "B", name: "Black" },
+                { code: "R", name: "Red" },
+                { code: "G", name: "Green" },
+                { code: "C", name: "Colourless" },
               ].map(color => (
-                <button 
-                  key={color.code} 
-                  title={color.name} 
-                  aria-label={`Filter ${color.name} cards`} 
-                  aria-pressed={colors.includes(color.code)} 
-                  className={`mana-color mana-${color.code} ${colors.includes(color.code) ? "mana-selected" : ""}`} 
+                <button
+                  key={color.code}
+                  type="button"
+                  title={color.name}
+                  aria-label={`Filter ${color.name} cards`}
+                  aria-pressed={colors.includes(color.code)}
+                  className={`mana-color mana-${color.code} ${colors.includes(color.code) ? "mana-selected" : ""}`}
                   onClick={() => toggle(colors, color.code, setColors)}
                 >
-                  {color.symbol}
+                  <img src={`/images/mana/${color.code}.svg`} alt="" width={26} height={26} loading="lazy"/>
                 </button>
               ))}
             </div>

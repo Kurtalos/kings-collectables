@@ -144,5 +144,18 @@
 .customer-flag.out{background:#f5e7e0;color:#b07a5c}
 .customer-detail .admin-panel{margin-bottom:0}
 .customer-detail .inventory-table-scroll{max-height:none}
+
+/* Actionable sidebar summary replaces the old guide/store-status promotion. */
+.sidebar-bottom{border-top:1px solid #292929;padding-top:15px}
+.sidebar-priorities{padding:13px 10px 10px;border:1px solid #34302a;border-radius:8px;background:#1a1917}
+.sidebar-priorities-title{display:block;padding:0 6px 9px;color:var(--gold);font-size:8px;font-weight:800;letter-spacing:1.3px}
+.sidebar-priority{width:100%;min-height:38px;padding:7px 6px;display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;gap:8px;border-radius:5px;color:#e5dcd2;text-align:left;transition:background .16s ease}
+.sidebar-priority:hover{background:#2a251f}
+.sidebar-priority svg{color:var(--wine)}
+.sidebar-priority span{font-size:10px;font-weight:600;white-space:nowrap}
+.sidebar-priority strong{min-width:22px;padding:4px 5px;text-align:center;border-radius:4px;background:#32291b;color:var(--gold);font-size:9px;font-weight:800}
+.sidebar-bottom .sidebar-logout{width:100%;margin:12px 0 0;padding:10px 8px;font-size:10px;border-radius:5px}
+.sidebar-bottom .sidebar-logout:hover{background:#24201c;color:var(--wine)}
+@media(prefers-reduced-motion:reduce){.sidebar-priority{transition:none}}
 @media(max-width:1200px){.customer-summary-row{grid-template-columns:repeat(3,1fr)}.customer-stat-row{grid-template-columns:repeat(3,1fr)}.customer-detail-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.customer-summary-row{grid-template-columns:repeat(2,1fr)}.customer-stat-row{grid-template-columns:repeat(2,1fr)}.customer-toolbar .inventory-search{max-width:none;flex:1}.customer-detail-head .customer-avatar{width:52px;height:52px;font-size:27px}.customer-detail-title h1{font-size:22px}.customer-cards{grid-template-columns:1fr}}

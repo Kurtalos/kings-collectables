@@ -24,6 +24,7 @@ export function PosRegister({ products }: { products: Card[] }) {
   const [stock, setStock] = useState<Map<string, number>>(() => new Map(products.map(card => [card.id, card.quantity])));
   const [query, setQuery] = useState(""), [basket, setBasket] = useState<BasketLine[]>([]);
   const [customer, setCustomer] = useState<PosCustomer | null>(null), [customerQuery, setCustomerQuery] = useState(""), [customerResults, setCustomerResults] = useState<PosCustomer[]>([]), [searchingCustomers, setSearchingCustomers] = useState(false);
+  const [customerPanelOpen, setCustomerPanelOpen] = useState(true);
   const [newCustomer, setNewCustomer] = useState<{ name: string; email: string; password: string } | null>(null);
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]), [showTradeIn, setShowTradeIn] = useState(false);
   const [discount, setDiscount] = useState<{ type: "percent" | "amount"; value: string }>({ type: "percent", value: "" });
@@ -198,7 +199,7 @@ export function PosRegister({ products }: { products: Card[] }) {
         </div>) : <div className="pos-basket-empty"><ReceiptText size={26}/><p>Nothing on the counter yet.</p><small>Search and tap a card to start a sale.</small></div>}</div>
 
         <div className="pos-panels">
-          <details className="pos-panel" open={Boolean(customer) || false}><summary><Users size={14}/> Customer {customer ? `· ${customer.name}` : "· Walk-in"}{customer && <em>{money(customer.creditBalance)} credit</em>}</summary>
+          <details className="pos-panel pos-customer-panel" open={customerPanelOpen} onToggle={event => setCustomerPanelOpen(event.currentTarget.open)}><summary><Users size={14}/> Customer {customer ? `· ${customer.name}` : "· Walk-in"}{customer && <em>{money(customer.creditBalance)} credit</em>}</summary>
             {customer ? <div className="pos-customer-attached"><div><strong>{customer.name}</strong><small>{customer.email}</small><span className="pos-credit-pill"><CircleDollarSign size={12}/>{money(customer.creditBalance)} store credit</span></div><button className="pos-detach" onClick={() => setCustomer(null)}><X size={13}/> Detach</button></div>
               : <><div className="pos-customer-search"><Search size={14}/><input value={customerQuery} onChange={event => searchCustomers(event.target.value)} placeholder="Search by name or email…" aria-label="Search customers"/></div>
                 {searchingCustomers && <p className="pos-panel-hint"><LoaderCircle size={12} className="spin"/> Searching…</p>}
@@ -206,14 +207,14 @@ export function PosRegister({ products }: { products: Card[] }) {
                 <button className="pos-link-button" onClick={() => setNewCustomer({ name: "", email: "", password: "" })}><Plus size={13}/> New customer profile</button></>}
           </details>
 
-          <details className="pos-panel" open={tradeIns.length > 0}><summary><Package size={14}/> Trade-ins {tradeIns.length > 0 && <em>{money(tradeIns.reduce((sum, trade) => sum + trade.amount, 0))}</em>}</summary>
+          <details className="pos-panel"><summary><Package size={14}/> Trade-ins {tradeIns.length > 0 && <em>{money(tradeIns.reduce((sum, trade) => sum + trade.amount, 0))}</em>}</summary>
             {!customer ? <p className="pos-panel-hint">Attach a customer first — trade-in value is stored as their store credit.</p> : <>
               {tradeIns.map((trade, index) => <div className="pos-tradein-row" key={index}><input value={trade.name} placeholder="Card name" maxLength={160} onChange={event => setTradeIns(current => current.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} aria-label="Trade-in card name"/><label className="pos-price-override"><span>$</span><input type="number" min="0" max="10000" step="0.01" value={(trade.amount / 100).toFixed(2)} onChange={event => setTradeIns(current => current.map((item, i) => i === index ? { ...item, amount: Math.min(1000000, Math.max(0, Math.round(Number(event.target.value) * 100))) } : item))} aria-label="Trade-in value"/><button className="pos-line-remove" onClick={() => setTradeIns(current => current.filter((_, i) => i !== index))} aria-label="Remove trade-in"><X size={13}/></button></label></div>)}
               <button className="pos-link-button" onClick={() => setShowTradeIn(true)}><Plus size={13}/> Add trade-in</button>
               <p className="pos-panel-hint">Trade-in value is added to the customer's store credit when the sale completes.</p></>}
           </details>
 
-          <details className="pos-panel" open={discountValue > 0}><summary><Percent size={14}/> Discount {discountValue > 0 && <em>−{money(discountValue)}</em>}</summary>
+          <details className="pos-panel"><summary><Percent size={14}/> Discount {discountValue > 0 && <em>−{money(discountValue)}</em>}</summary>
             <div className="pos-discount-row"><div className="pos-toggle">{([["percent", "%"], ["amount", "$"]] as const).map(([type, label]) => <button key={type} className={discount.type === type ? "active" : ""} onClick={() => setDiscount(current => ({ ...current, type }))}>{label}</button>)}</div>
               <input type="number" min="0" max={discount.type === "percent" ? 100 : 10000} step={discount.type === "percent" ? "1" : "0.01"} value={discount.value} placeholder="0" onChange={event => setDiscount(current => ({ ...current, value: event.target.value }))} aria-label="Discount value"/>
               {discountValue > 0 && <button className="pos-detach" onClick={() => setDiscount({ type: "percent", value: "" })}>Clear</button>}</div>

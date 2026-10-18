@@ -1,4 +1,4 @@
-import { getCatalog, getOrders, getImportHistory } from "@/lib/catalog";
+import { getCatalog, getOrders, getImportHistory, getInventoryStats } from "@/lib/catalog";
 import { hasOwnerAccess, ownerProtectionEnabled } from "@/lib/admin-auth";
 import { AdminDashboard } from "@/components/admin-dashboard";
 import { AdminLogin } from "@/components/admin-login";
@@ -7,10 +7,11 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   if (!(await hasOwnerAccess())) return <AdminLogin/>;
-  const [catalog, orders, history] = await Promise.all([
-    getCatalog({ limit: 200 }), 
+  const [catalog, orders, history, stats] = await Promise.all([
+    getCatalog({ limit: 100 }), 
     getOrders(), 
-    getImportHistory()
+    getImportHistory(),
+    getInventoryStats(),
   ]);
   return (
     <AdminDashboard 
@@ -18,6 +19,7 @@ export default async function AdminPage() {
       initialCollections={catalog.collections} 
       initialOrders={orders} 
       importHistory={history} 
+      initialStats={stats}
       protectedOwner={ownerProtectionEnabled()}
     />
   );

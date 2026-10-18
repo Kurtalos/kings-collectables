@@ -192,15 +192,6 @@ The runtime needs `DATABASE_URL` pointing to PostgreSQL. Install dependencies, a
 
 The first catalogue request seeds 18 sample printings and four collections. The seed is idempotent: a database marker prevents deleted stock from being recreated. Replace these sample prices and quantities with your actual inventory before publishing.
 
-## Deploying to your server
-
-See **[DEPLOY-GITHUB.md](DEPLOY-GITHUB.md)** for the full step-by-step guide covering:
-- Pushing your code to GitHub
-- One-time server setup (clone, build, database, PM2, Nginx, SSL)
-- **One-command updates** with `./scripts/deploy.sh`
-- Loading the complete 110,000+ card database
-- Why database updates are safe (schema is idempotent; card sync uses `ON CONFLICT DO NOTHING` and never touches your inventory)
-
 ## Owner protection
 
 The preview workspace is intentionally accessible when `ADMIN_PASSWORD` is not set, so you can try all management features. **Set a strong `ADMIN_PASSWORD` and an independent, random `SESSION_SECRET` in server environment variables before publishing.** Do not prefix either secret with `NEXT_PUBLIC_`.

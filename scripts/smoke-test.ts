@@ -95,7 +95,9 @@ async function main() {
   await api(`/api/cards/${product!.id}`, "PATCH", { price: -1 }, 400);
   await api("/api/cards/not-a-uuid", "PATCH", { price: 200 }, 400);
   const variant = await api("/api/cards", "POST", { scryfallId: product!.scryfallId, condition: "Lightly played", finish: "Foil", price: 123, quantity: 1, categoryIds: [groupId] }, 201); variantId = variant.product.id;
-  await api("/api/cards", "POST", { scryfallId: product!.scryfallId, condition: product!.condition, finish: product!.finish, price: 123, quantity: 1 }, 400);
+  // Adding an existing card seamlessly updates its stock and price
+  await api("/api/cards", "POST", { scryfallId: product!.scryfallId, condition: product!.condition, finish: product!.finish, price: product!.price, quantity: product!.quantity }, 201);
+  await api("/api/cards", "POST", { scryfallId: product!.scryfallId, condition: "InvalidCondition", finish: product!.finish, price: 123, quantity: 1 }, 400);
   await api(`/api/cards/${variantId}`, "DELETE"); variantId = "";
   const preview = await api("/api/import", "POST", { action: "preview", filename: "smoke-test.csv", rows: [{ name: "Sol Ring", set: "cmm", quantity: "2", price: "3.50", condition: "NM", finish: "Non-foil" }, { name: "Invalid test card", quantity: "bad", price: "1.00" }] }); importId = preview.importId;
   assert.equal(preview.rows[0].card.name, "Sol Ring"); assert.ok(preview.rows[1].error);

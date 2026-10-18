@@ -246,3 +246,31 @@ export async function getImportHistory(): Promise<ImportLog[]> {
   const logs = await db.select({ id: imports.id, filename: imports.filename, status: imports.status, imported: imports.imported, skipped: imports.skipped, createdAt: imports.createdAt }).from(imports).where(eq(imports.status, "completed")).orderBy(desc(imports.createdAt)).limit(20);
   return logs.map(log => ({ ...log, createdAt: log.createdAt.toISOString() }));
 }
+
+export type InventoryStats = {
+  totalCards: number;
+  inStockVariants: number;
+  totalStock: number;
+  inventoryValue: number;
+  lowStock: number;
+};
+
+export async function getInventoryStats(): Promise<InventoryStats> {
+  const res = await db.execute(sql`
+    SELECT
+      count(*)::int as "totalCards",
+      count(*) FILTER (WHERE quantity > 0)::int as "inStockVariants",
+      coalesce(sum(quantity) FILTER (WHERE quantity > 0), 0)::int as "totalStock",
+      coalesce(sum(quantity * price) FILTER (WHERE quantity > 0), 0)::int as "inventoryValue",
+      count(*) FILTER (WHERE quantity > 0 AND quantity <= 3)::int as "lowStock"
+    FROM products;
+  `);
+  const row = (res.rows?.[0] as any) || {};
+  return {
+    totalCards: Number(row.totalCards || 0),
+    inStockVariants: Number(row.inStockVariants || 0),
+    totalStock: Number(row.totalStock || 0),
+    inventoryValue: Number(row.inventoryValue || 0),
+    lowStock: Number(row.lowStock || 0),
+  };
+}
