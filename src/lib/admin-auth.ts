@@ -18,9 +18,15 @@ export async function hasOwnerAccess() {
   const expected = signature(expiry);
   return supplied.length === expected.length && timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
 }
-export async function setOwnerSession() {
+/** Secure cookies are refused by browsers on plain HTTP, so only set the flag when the visitor is actually on HTTPS. */
+export function requestIsHttps(request: Request) {
+  const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  if (forwarded) return forwarded === "https";
+  return new URL(request.url).protocol === "https:";
+}
+export async function setOwnerSession(request: Request) {
   const expiry = String(Date.now() + 1000 * 60 * 60 * 12);
-  (await cookies()).set(cookieName, `${expiry}.${signature(expiry)}`, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 12 });
+  (await cookies()).set(cookieName, `${expiry}.${signature(expiry)}`, { httpOnly: true, sameSite: "strict", secure: requestIsHttps(request), path: "/", maxAge: 60 * 60 * 12 });
 }
 export async function clearOwnerSession() { (await cookies()).delete(cookieName); }
 export async function requireOwner(request: Request) {

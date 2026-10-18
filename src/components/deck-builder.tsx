@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Wand2, LoaderCircle, ShoppingBag, AlertCircle, Check, Save, Trash2, FolderOpen, CircleAlert, Crown, Plus, Download, RotateCcw } from "lucide-react";
+import { Wand2, LoaderCircle, ShoppingBag, AlertCircle, Check, Save, Trash2, FolderOpen, CircleAlert, Crown, Plus, Download, RotateCcw, Link2, ExternalLink, ClipboardPaste, X } from "lucide-react";
 import { EmptyState, requestJSON } from "./ui";
 import { money, type Card, type Customer } from "@/lib/types";
 import { downloadCSV } from "@/lib/csv";
+import { parseDeckLink, SITE_EXPORT_STEPS, siteName, type DeckLink } from "@/lib/moxfield";
 
 type DeckVariant = { id: string; condition: string; finish: string; price: number; quantity: number };
 type DeckRow = {
@@ -38,11 +39,16 @@ export function DeckBuilder({ products, customer, onAdd, onOpenCart, notify }: {
   const [text, setText] = useState(""), [rows, setRows] = useState<DeckRow[]>([]), [summary, setSummary] = useState<DeckSummary | null>(null), [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [picked, setPicked] = useState<Record<string, string>>({}), [showMissing, setShowMissing] = useState(false);
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>([]), [deckName, setDeckName] = useState(""), [saving, setSaving] = useState(false), [activeDeck, setActiveDeck] = useState<string | null>(null);
+  const [linkModal, setLinkModal] = useState<DeckLink | null>(null), [linkDraft, setLinkDraft] = useState("");
 
   useEffect(() => { requestJSON<{ customer: Customer | null; decks: SavedDeck[] }>("/api/decks").then(data => setSavedDecks(data.decks)).catch(() => {}); }, []);
   useEffect(() => { setPicked(current => { const next = { ...current }; for (const row of rows) if (row.variants.length && !next[row.requested]) next[row.requested] = row.variants[0].id; return next; }); }, [rows]);
 
   async function search() {
+    // A pasted deck URL can't be fetched directly (Moxfield and friends block server-side reads),
+    // so intercept it and walk the customer through the text export instead.
+    const link = parseDeckLink(text);
+    if (link) { setLinkModal(link); setLinkDraft(text.trim()); setError(""); setBusy(false); return; }
     setBusy(true); setError("");
     try {
       const result = await requestJSON<{ rows: DeckRow[]; warnings: string[]; summary: DeckSummary }>("/api/decklist", { method: "POST", body: JSON.stringify({ text }) });
@@ -101,7 +107,8 @@ export function DeckBuilder({ products, customer, onAdd, onOpenCart, notify }: {
   const orphans = visible.filter(row => !SECTION_ORDER.includes(row.section));
   const addedCost = rows.filter(row => row.status === "instock" || row.status === "partial").reduce((sum, row) => sum + Math.min(row.quantity, row.available) * row.unitPrice, 0);
 
-  return <main className="container deck-main">
+  return <>
+    <main className="container deck-main">
     <div className="deck-hero"><span className="eyebrow">DECK BUILDER</span><h1>Paste your list.<br/>We'll find the cards.</h1><p>Drop in a list from Arena, Moxfield, Archidekt or a text file. We'll match every line against live stock and add what's available to your cart in one click.</p></div>
     <div className="deck-layout">
       <section className="deck-input-panel">
@@ -112,6 +119,7 @@ export function DeckBuilder({ products, customer, onAdd, onOpenCart, notify }: {
           <button className="button button-outline" onClick={() => { setText(SAMPLE); setRows([]); setSummary(null); }}><RotateCcw size={15}/> Sample list</button>
           <button className="button button-outline" onClick={reset} disabled={!text && !rows.length}>Clear</button>
         </div>
+        <button className="deck-link-import" onClick={() => { setLinkModal({ site: "moxfield", deckId: "", url: "" }); setLinkDraft(""); }}><Link2 size={14}/> Import from Moxfield, Archidekt or another deck site</button>
         <details className="deck-format-help"><summary>Formats we understand</summary><ul><li><strong>4 Lightning Bolt</strong> — plain text</li><li><strong>4x Sol Ring</strong> — with an x</li><li><strong>1 The One Ring (LTR) 241</strong> — set and collector number</li><li><strong>SB: 2 Cyclonic Rift</strong> — sideboard line</li><li><strong>Sideboard</strong> — section headings</li></ul><p>One card per line, up to 400 lines and 200 different cards. Duplicate lines are merged automatically.</p></details>
         {savedDecks.length > 0 && <div className="deck-saved"><h3><FolderOpen size={15}/> Saved decks</h3>{savedDecks.map(deck => <div className="deck-saved-row" key={deck.id}><button className="deck-saved-open" onClick={() => load(deck)}><strong>{deck.name}</strong><small>{deck.total} cards · {new Date(deck.updatedAt).toLocaleDateString("en-AU")}</small></button><button className="icon-button" aria-label={`Delete ${deck.name}`} onClick={() => remove(deck)}><Trash2 size={14}/></button></div>)}</div>}
       </section>
@@ -149,5 +157,61 @@ export function DeckBuilder({ products, customer, onAdd, onOpenCart, notify }: {
         </>}
       </section>
     </div>
-  </main>;
+    </main>
+
+    {linkModal && <DeckLinkModal
+      link={linkModal}
+      draft={linkDraft}
+      onDraft={setLinkDraft}
+      onClose={() => { setLinkModal(null); setLinkDraft(""); }}
+      onUse={(deckText) => {
+        setText(deckText);
+        setLinkModal(null); setLinkDraft("");
+        setRows([]); setSummary(null);
+        notify("Decklist pasted. Press “Find my cards” to match it against our stock.");
+      }}
+    />}
+  </>;
+}
+
+function DeckLinkModal({ link, draft, onDraft, onClose, onUse }: {
+  link: DeckLink; draft: string; onDraft: (value: string) => void; onClose: () => void; onUse: (deckText: string) => void;
+}) {
+  const steps = link.site && link.deckId ? SITE_EXPORT_STEPS[link.site] : null;
+  const pasted = draft.trim();
+  const looksLikeDecklist = pasted.split(/\r?\n/).filter(line => line.trim()).length >= 2 && !parseDeckLink(pasted);
+  return (
+    <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-panel deck-link-modal" role="dialog" aria-modal="true" aria-label="Import a deck from a link">
+        <div className="modal-heading"><h2>Import a deck from a link</h2><button className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={21}/></button></div>
+        <div className="deck-link-body">
+          <label className="deck-link-field">
+            <span>Paste the deck URL</span>
+            <input value={draft} onChange={event => onDraft(event.target.value)} placeholder="https://www.moxfield.com/decks/…" autoFocus/>
+          </label>
+
+          {link.deckId && steps ? (
+            <div className="deck-link-steps">
+              <div className="deck-link-detected"><Link2 size={15}/> <span>{siteName(link.site)} deck <code>{link.deckId}</code> detected</span><a href={link.url} target="_blank" rel="noreferrer">Open deck <ExternalLink size={12}/></a></div>
+              <h3>{steps.title}</h3>
+              <ol>{steps.steps.map(step => <li key={step}>{step}</li>)}</ol>
+              {steps.note && <p className="deck-link-note">{steps.note}</p>}
+            </div>
+          ) : (
+            <p className="deck-link-hint">Supports <strong>Moxfield</strong>, <strong>Archidekt</strong>, <strong>TappedOut</strong> and <strong>MTGGoldfish</strong>. Deck sites block other websites from reading their URLs directly, so we'll walk you through copying the deck as text — it takes about four clicks and works for private decks too.</p>
+          )}
+
+          <label className="deck-link-field">
+            <span>Then paste the deck text here</span>
+            <textarea value={draft.includes("\n") || looksLikeDecklist ? draft : ""} onChange={event => onDraft(event.target.value)} rows={8} spellCheck={false} placeholder={"Deck\n1 Sol Ring\n4 Lightning Bolt\n\nSideboard\n2 Cyclonic Rift"}/>
+          </label>
+
+          <div className="deck-link-actions">
+            <button className="button button-outline" onClick={onClose}>Cancel</button>
+            <button className="button button-primary" disabled={!looksLikeDecklist} onClick={() => onUse(draft)}><ClipboardPaste size={15}/> Use this decklist</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

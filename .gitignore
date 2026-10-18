@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Secrets — never commit these
+.env
+.env.local
+.env.production
+
+# Test artifacts
+artifacts/
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript / build caches
+*.tsbuildinfo
+.tsbuildinfo
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

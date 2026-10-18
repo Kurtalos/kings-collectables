@@ -10,6 +10,6 @@ export const metadata: Metadata = { title: "Register", robots: { index: false, f
 
 export default async function PosPage() {
   if (!(await hasOwnerAccess())) return <AdminLogin/>;
-  const catalog = await getCatalog();
+  const catalog = await getCatalog({ inStockOnly: true, limit: 100 });
   return <PosRegister products={catalog.products}/>;
 }

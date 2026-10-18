@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual, scrypt, randomBytes } from "node:crypto";
+import { requestIsHttps } from "@/lib/admin-auth";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { db } from "@/db";
@@ -39,9 +40,9 @@ export async function getCustomer() {
   const [customer] = await db.select({ id: customers.id, name: customers.name, email: customers.email }).from(customers).where(eq(customers.id, id)).limit(1);
   return customer || null;
 }
-export async function setCustomerSession(id: string) {
+export async function setCustomerSession(id: string, request: Request) {
   const expiry = String(Date.now() + 1000 * 60 * 60 * 24 * sessionDays);
-  (await cookies()).set(cookieName, `${expiry}.${id}.${sign(`${expiry}.${id}`)}`, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * sessionDays });
+  (await cookies()).set(cookieName, `${expiry}.${id}.${sign(`${expiry}.${id}`)}`, { httpOnly: true, sameSite: "lax", secure: requestIsHttps(request), path: "/", maxAge: 60 * 60 * 24 * sessionDays });
 }
 export async function clearCustomerSession() { (await cookies()).delete(cookieName); }
 export async function requireCustomer() {

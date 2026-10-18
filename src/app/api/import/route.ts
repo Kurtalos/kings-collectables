@@ -6,6 +6,7 @@ import { getCatalog } from "@/lib/catalog";
 import { readBody, isUUID, validateStock, validatePrice } from "@/lib/validation";
 import { identifier, matchesCard, cardMetadata, scryfallRequest, type ScryfallCard } from "@/lib/scryfall";
 import { CONDITIONS, FINISHES, slugify, type ImportInput, type ImportRow } from "@/lib/types";
+import { checkAndNotifyRestock } from "@/lib/restock";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -95,8 +96,13 @@ export async function POST(request: Request) {
         }
         for (const row of [...grouped.values()].sort((a, b) => a.card!.scryfallId.localeCompare(b.card!.scryfallId))) {
           const [existing] = await tx.select().from(products).where(and(eq(products.scryfallId, row.card!.scryfallId), eq(products.condition, row.condition), eq(products.finish, row.finish))).for("update");
-          if (body.mode === "add" && (existing?.quantity || 0) + row.quantity > 100000) throw new Error(`${row.name} would exceed 100,000 copies. Choose replace quantities or reduce the quantity.`);
+          const oldQuantity = existing?.quantity || 0;
+          if (body.mode === "add" && oldQuantity + row.quantity > 100000) throw new Error(`${row.name} would exceed 100,000 copies. Choose replace quantities or reduce the quantity.`);
           const [card] = await tx.insert(products).values({ ...row.card!, quantity: row.quantity, price: row.price, condition: row.condition, finish: row.finish }).onConflictDoUpdate({ target: [products.scryfallId, products.condition, products.finish], set: { price: row.price, quantity: body.mode === "replace" ? row.quantity : sql`${products.quantity} + ${row.quantity}` } }).returning();
+          // Notify watchers if this variant came back in stock
+          if (oldQuantity === 0 && row.quantity > 0) {
+            await checkAndNotifyRestock(card.id, oldQuantity, row.quantity);
+          }
           for (const name of [...new Set(row.category.split("|").map(name => name.trim()).filter(Boolean))]) {
             const slug = slugify(name);
             const [created] = await tx.insert(categories).values({ name, slug }).onConflictDoNothing().returning();

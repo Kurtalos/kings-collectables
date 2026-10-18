@@ -256,7 +256,7 @@ For any of these, the process is: push the repo → set the environment variable
 ## Files to leave on the server vs. local only
 
 **Keep on the server:**
-- Everything in `src/`, `public/`, `scripts/` (the fetch scripts), `drizzle.config.json`, `package.json`, `.env` (server env vars), `.next/` (after build), `node_modules/` (after install)
+- Everything in `src/`, `public/`, `scripts/` (the fetch scripts), `drizzle.config.ts`, `package.json`, `.env` (server env vars), `.next/` (after build), `node_modules/` (after install)
 
 **Only needed locally:**
 - `artifacts/` (test screenshots)

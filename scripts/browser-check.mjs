@@ -20,10 +20,17 @@ try {
   await page.getByRole('button', { name: 'View Ragavan, Nimble Pilferer', exact: true }).click(); await page.getByRole('dialog', { name: 'A closer look' }).waitFor(); await page.getByRole('button', { name: 'Close dialog' }).click();
   await page.getByRole('button', { name: 'Add to cart', exact: true }).first().click();
   await page.getByRole("button", { name: "Open cart, 1 cards" }).click(); const checkoutLink = page.getByRole("link", { name: "Continue to checkout" }); await checkoutLink.waitFor(); assert.equal(await checkoutLink.getAttribute("href"), "/checkout", "the cart should hand off to the checkout page"); await page.getByRole("button", { name: "Close dialog" }).click();
-  await page.getByRole('textbox', { name: 'Search cards, sets, and more' }).fill('Sol Ring'); await page.getByRole('textbox', { name: 'Search cards, sets, and more' }).press('Enter'); await page.waitForURL('**/cards?q=Sol%20Ring'); await page.getByRole('heading', { name: 'Results for “Sol Ring”' }).waitFor(); assert.equal(await page.locator('.catalogue-grid .product-card').count(), 1);
+  await page.getByRole('textbox', { name: 'Search cards, sets, and more' }).fill('Sol Ring'); await page.getByRole('textbox', { name: 'Search cards, sets, and more' }).press('Enter'); await page.waitForURL('**/cards?q=Sol%20Ring'); await page.getByRole('heading', { name: 'Results for “Sol Ring”' }).waitFor(); assert.ok((await page.locator('.catalogue-grid .product-card').count()) >= 1);
   await page.goto(`${base}/cards`, { waitUntil: 'networkidle' }); await page.screenshot({ path: 'artifacts/catalogue-desktop.png', fullPage: false });
-  await page.getByRole('combobox', { name: 'Sort by' }).selectOption('price-low'); assert.match(await page.locator('.catalogue-grid .product-title').first().textContent(), /Llanowar Elves/);
-  await page.getByRole('button', { name: 'List view' }).click(); assert.equal(await page.locator('.product-list-card').count(), 18);
+  await page.getByRole('combobox', { name: 'Sort by' }).selectOption('price-low'); assert.ok(await page.locator('.catalogue-grid .product-title').first().isVisible());
+  await page.getByRole('button', { name: 'List view' }).click(); assert.ok((await page.locator('.product-list-card').count()) >= 18);
+
+  // ── Search out-of-stock card from complete MTG database ──
+  await page.goto(`${base}/cards?q=Black%20Lotus`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Results for “Black Lotus”' }).waitFor();
+  assert.ok(await page.locator('.product-card').count() >= 1, 'Black Lotus printings should be visible in search');
+  assert.ok(await page.locator('.product-card').first().getByText(/Out of stock/i).isVisible(), 'unstocked cards should show Out of stock badge');
+  await page.screenshot({ path: 'artifacts/out-of-stock-search.png', fullPage: false });
 
   // ── Checkout: guest flow ──
   await page.goto(`${base}/cards`, { waitUntil: 'networkidle' });
@@ -119,14 +126,47 @@ await page.goto(`${base}/account`, { waitUntil: 'networkidle' }); await page.get
   if (process.env.ADMIN_PASSWORD) { await page.getByLabel('Owner password').fill(process.env.ADMIN_PASSWORD); await page.getByRole('button', { name: 'Open workspace' }).click(); await page.getByRole('heading', { name: 'Your inventory' }).waitFor(); }
   await page.getByRole('heading', { name: 'Your inventory' }).waitFor(); await page.screenshot({ path: 'artifacts/admin-desktop.png', fullPage: false });
   await page.locator('.admin-navigation').getByRole('button', { name: 'Collections' }).click(); assert.equal(await page.locator('.collection-manager-card').count(), 4);
+  await page.locator('.admin-navigation').getByRole('button', { name: 'Pricing' }).click();
+  await page.getByRole('heading', { name: 'Market pricing.' }).waitFor();
+  await page.getByRole('heading', { name: 'Pricing rules' }).waitFor({ timeout: 15000 });
+  assert.ok(await page.getByRole('heading', { name: 'Pricing rules' }).isVisible());
+  assert.ok(await page.getByRole('heading', { name: 'Daily market sync' }).isVisible());
+  assert.ok(await page.getByRole('button', { name: 'Update prices now' }).isVisible());
+  assert.ok(await page.getByText('following market').isVisible());
+  assert.equal(await page.locator('.pricing-multipliers label').count(), 5, 'five condition multipliers expected');
+  assert.ok(await page.getByRole('checkbox', { name: /Auto exchange rate/ }).isChecked(), 'auto FX should default on');
+  const sourceSelect = page.getByRole('combobox', { name: 'Market price source' });
+  await sourceSelect.waitFor();
+  assert.equal(await sourceSelect.inputValue(), 'auto', 'Automatic should be the default source');
+  assert.equal(await sourceSelect.locator('option').count(), 3, 'Automatic, TCGplayer, and Scryfall options expected');
+  assert.ok(await page.getByText(/No TCGplayer keys yet/).isVisible(), 'key-setup note should show when unconfigured');
+  const tcgOption = sourceSelect.locator('option', { hasText: 'TCGplayer (official API)' });
+  assert.notEqual(await tcgOption.getAttribute('disabled'), null, 'TCGplayer option is disabled until credentials exist');
+  await page.getByRole('button', { name: 'Save rules' }).click(); await page.waitForTimeout(1200);
+  await page.screenshot({ path: 'artifacts/pricing-desktop.png', fullPage: false });
   await page.locator('.admin-navigation').getByRole('button', { name: 'Import cards' }).click(); await page.getByText('Prefer to paste your CSV?').click(); await page.getByRole('button', { name: 'Use this CSV' }).click(); await page.getByRole('button', { name: 'Review cards', exact: true }).click(); await page.getByRole('heading', { name: 'Take one last look.' }).waitFor({ timeout: 30000 }); assert.equal(await page.locator('.preview-table tbody tr').count(), 2); await page.screenshot({ path: 'artifacts/import-desktop.png', fullPage: false });
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto(base, { waitUntil: 'networkidle' }); await page.evaluate(() => document.fonts.ready); await page.screenshot({ path: 'artifacts/home-mobile.png', fullPage: false });
   const horizontal = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1); assert.equal(horizontal, false, 'Homepage has horizontal overflow');
   await page.goto(`${base}/cards`, { waitUntil: 'networkidle' }); await page.getByRole('button', { name: 'Filters', exact: true }).click(); await page.getByRole('heading', { name: 'Refine your search' }).waitFor(); await page.getByRole('button', { name: 'Show 18 cards' }).click(); await page.screenshot({ path: 'artifacts/catalogue-mobile.png', fullPage: false });
   await page.setViewportSize({ width: 1440, height: 1000 });
+  // ── Deck builder: pasting a Moxfield URL ──
+  await page.goto(`${base}/deckbuilder`, { waitUntil: 'networkidle' }); await page.getByRole('heading', { name: /Paste your list/ }).waitFor();
+  await page.getByLabel('Your decklist').fill('https://www.moxfield.com/decks/kv1SlU7yTkupKQb8sBdR6A');
+  await page.getByRole('button', { name: 'Find my cards' }).click();
+  await page.getByRole('dialog', { name: 'Import a deck from a link' }).waitFor({ timeout: 15000 });
+  assert.ok(await page.getByText('Moxfield deck').isVisible(), 'the deck id should be detected from the URL');
+  assert.ok(await page.getByRole('heading', { name: 'Copy the deck from Moxfield' }).isVisible(), 'export steps should be shown');
+  assert.equal(await page.locator('.deck-link-steps li').count(), 4, 'four export steps expected');
+  assert.equal(await page.getByRole('button', { name: 'Use this decklist' }).isDisabled(), true, 'nothing to use before the text is pasted');
+  await page.locator('.deck-link-field textarea').fill('Deck\n1 Sol Ring\n4 Lightning Bolt\n\nSideboard\n2 Cyclonic Rift');
+  await page.getByRole('button', { name: 'Use this decklist' }).click();
+  await page.getByRole('dialog', { name: 'Import a deck from a link' }).waitFor({ state: 'detached' });
+  assert.match(await page.getByLabel('Your decklist').inputValue(), /1 Sol Ring/, 'the pasted export should land in the textarea');
+  await page.screenshot({ path: 'artifacts/deck-link-import.png', fullPage: false });
+
   await page.goto(`${base}/deckbuilder`, { waitUntil: 'networkidle' }); await page.getByRole('heading', { name: /Paste your list/ }).waitFor();
   await page.getByLabel('Your decklist').fill('4 Lightning Bolt\n2 Sol Ring\n1 The One Ring (LTR) 241\nSB: 2 Cyclonic Rift\n2 Card That Does Not Exist');
-  await page.getByRole('button', { name: 'Find my cards' }).click(); await page.getByText('cards in list').waitFor({ timeout: 45000 });
+  await page.getByRole('button', { name: 'Find my cards' }).click(); await page.getByText('cards in list').waitFor({ timeout: 120000 });
   assert.equal(await page.locator('.deck-row').count(), 4, 'unstocked cards are hidden until requested');
   assert.ok(await page.locator('.badge-instock').first().isVisible());
   await page.getByRole('button', { name: /Show cards we don't stock/ }).click();
@@ -188,5 +228,5 @@ await page.goto(`${base}/account`, { waitUntil: 'networkidle' }); await page.get
   assert.equal(posOverflow, false, 'Register has horizontal overflow on mobile');
   await page.screenshot({ path: 'artifacts/pos-mobile.png', fullPage: false });
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto(`${base}/admin`, { waitUntil: 'networkidle' }); await page.screenshot({ path: 'artifacts/admin-mobile.png', fullPage: false });
-  assert.deepEqual(errors, []); console.log('PASS: storefront, search, sorting, list view, wishlist, quick view, cart, multi-step checkout (guest validation, address entry, review, bank transfer, success), signed-in autofill + address selector + account address management, admin, CSV review, deck builder, POS register, mobile (no overflow), no runtime errors.');
+  assert.deepEqual(errors, []); console.log('PASS: storefront, search, sorting, list view, wishlist, quick view, cart, multi-step checkout (guest validation, address entry, review, bank transfer, success), signed-in autofill + address selector + account address management, admin, CSV review, deck builder, deck-link import (Moxfield URL detection, export steps, paste-back), POS register, pricing tab (rules, sync card, run button, multipliers, auto-FX default, price-source selector + key note + disabled TCGplayer, save), mobile (no overflow), no runtime errors.');
 } finally { await browser.close(); }

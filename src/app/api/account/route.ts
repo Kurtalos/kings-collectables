@@ -55,12 +55,12 @@ export async function POST(request: Request) {
         const [existing] = await db.select({ id: customers.id }).from(customers).where(eq(customers.email, email)).limit(1);
         if (existing) throw new Error("An account with this email already exists. Try signing in.");
         const [created] = await db.insert(customers).values({ name, email, passwordHash: await hashPassword(password) }).returning({ id: customers.id, name: customers.name, email: customers.email });
-        await setCustomerSession(created.id);
+        await setCustomerSession(created.id, request);
         return Response.json(await accountPayload(created), { status: 201 });
       }
       const [found] = await db.select().from(customers).where(eq(customers.email, email)).limit(1);
       if (!found || !(await verifyPassword(password, found.passwordHash))) throw new Error("That email or password wasn't correct.");
-      await setCustomerSession(found.id);
+      await setCustomerSession(found.id, request);
       return Response.json(await accountPayload({ id: found.id, name: found.name, email: found.email }));
     }
 

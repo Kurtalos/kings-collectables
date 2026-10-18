@@ -30,8 +30,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     sameOrigin(request);
-    const limited = limitPublicRequests(request, "address-save", 15); if (limited) return limited;
+    // Authenticate before counting, so unauthenticated floods cannot starve real customers of quota.
     const customer = await requireCustomer();
+    const limited = limitPublicRequests(request, "address-save", 15); if (limited) return limited;
     const body = await readBody(request);
     const fields = validateAddress(body);
 

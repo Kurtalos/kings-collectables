@@ -6,7 +6,7 @@ import { requireOwner, apiError } from "@/lib/admin-auth";
 import { limitPublicRequests } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
-  const limited = limitPublicRequests(request, "contact", 5); if (limited) return limited;
+  const limited = limitPublicRequests(request, "contact", 20); if (limited) return limited;
   try { const body = await readBody(request); const name = textField(body.name, "Name"), message = textField(body.message, "Message", 2000); if (!validEmail(body.email)) throw new Error("Enter a valid email address."); await db.insert(inquiries).values({ name, email: body.email.toLowerCase().trim(), message }); return Response.json({ ok: true }, { status: 201 }); } catch (error) { return apiError(error); }
 }
 export async function GET(request: Request) {

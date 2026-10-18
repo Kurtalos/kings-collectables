@@ -17,10 +17,24 @@ export const products = pgTable("products", {
   condition: text("condition").notNull().default("Near mint"),
   finish: text("finish").notNull().default("Non-foil"),
   price: integer("price").notNull(),
+  priceMode: text("price_mode").notNull().default("manual"),
+  usdPrice: integer("usd_price"),
+  priceUpdatedAt: timestamp("price_updated_at", { withTimezone: true }),
   quantity: integer("quantity").notNull().default(0),
   featured: boolean("featured").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex("product_printing_variant").on(table.scryfallId, table.condition, table.finish)]);
+
+export const priceEvents = pgTable("price_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  oldPrice: integer("old_price").notNull(),
+  newPrice: integer("new_price").notNull(),
+  usdPrice: integer("usd_price").notNull(),
+  rate: integer("rate").notNull(),
+  source: text("source").notNull().default("daily"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const categories = pgTable("categories", {
   id: uuid("id").defaultRandom().primaryKey(),

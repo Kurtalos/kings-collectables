@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Checkout", robots: { index: false, follow: false } };
 
 export default async function CheckoutPage() {
-  const [catalog, customer] = await Promise.all([getCatalog(), getCustomer()]);
+  const [catalog, customer] = await Promise.all([getCatalog({ limit: 48 }), getCustomer()]);
   const addresses = customer ? await listAddresses(customer.id) : [];
   return (
     <Checkout

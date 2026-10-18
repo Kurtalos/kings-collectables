@@ -5,27 +5,43 @@ export type ScryfallCard = {
   colors?: string[]; type_line: string; mana_cost?: string; oracle_text?: string;
   image_uris?: { normal: string; art_crop: string };
   card_faces?: { image_uris?: { normal: string; art_crop: string }; colors?: string[]; oracle_text?: string }[];
+  prices?: { usd?: string | null; usd_foil?: string | null; usd_etched?: string | null };
+  tcgplayer_id?: number | null;
+  tcgplayer_etched_id?: number | null;
 };
 let queue: Promise<unknown> = Promise.resolve();
 let lastCall = 0;
-export async function scryfallRequest(path: string, body?: unknown): Promise<unknown> {
-  const task = queue.catch(() => {}).then(async () => {
-    await new Promise(resolve => setTimeout(resolve, Math.max(0, 550 - (Date.now() - lastCall))));
-    lastCall = Date.now();
+async function scryfallFetch(path: string, body?: unknown, attempt = 0): Promise<unknown> {
+  try {
     const response = await fetch(`https://api.scryfall.com${path}`, {
       method: body ? "POST" : "GET",
       headers: { "User-Agent": "ManaVaultStore/1.0 (independent card catalogue)", "Accept": "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
-      ...(body ? { body: JSON.stringify(body) } : {}), cache: "no-store", signal: AbortSignal.timeout(25000),
+      ...(body ? { body: JSON.stringify(body) } : {}), cache: "no-store", signal: AbortSignal.timeout(45000),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(response.status === 429 ? "Scryfall is temporarily rate-limited. Please wait 30 seconds and try again." : result.details || "The card service could not resolve this card.");
     return result;
+  } catch (error) {
+    // One retry with backoff keeps the daily sync resilient to transient network stalls.
+    if (attempt === 0 && !(error instanceof Error && error.message.includes("rate-limited"))) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      return scryfallFetch(path, body, 1);
+    }
+    throw error;
+  }
+}
+export async function scryfallRequest(path: string, body?: unknown): Promise<unknown> {
+  const task = queue.catch(() => {}).then(async () => {
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, 550 - (Date.now() - lastCall))));
+    lastCall = Date.now();
+    return scryfallFetch(path, body);
   });
   queue = task;
   return task;
 }
 
-export function cardMetadata(card: ScryfallCard): Omit<Card, "id" | "createdAt" | "categoryIds" | "quantity" | "price" | "condition" | "finish"> {
+export type CardMetadata = Omit<Card, "id" | "createdAt" | "categoryIds" | "quantity" | "price" | "condition" | "finish" | "priceMode" | "usdPrice" | "priceUpdatedAt">;
+export function cardMetadata(card: ScryfallCard): CardMetadata {
   const images = card.image_uris || card.card_faces?.[0]?.image_uris;
   if (!images) throw new Error("This printing doesn't have a card image yet.");
   return {

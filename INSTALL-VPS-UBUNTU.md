@@ -206,6 +206,16 @@ npx drizzle-kit push
 ```
 This creates all the tables in your PostgreSQL database.
 
+### Populate the complete MTG Card Database (110,000+ printings)
+```bash
+node scripts/sync-all-cards.mjs
+```
+This streams Scryfall's bulk data and populates every English Magic: The Gathering card printing into your PostgreSQL database in about 15-20 seconds.
+- Every card and printing in Magic's history is registered.
+- Cards start as "Out of stock" (`quantity: 0`) with Scryfall high-res image scans and oracle text.
+- Customers can search for ANY card on the storefront, view it, add it to their wishlist, and click "Watch for restock".
+- When you later add stock or import cards, watchers are automatically notified!
+
 ### Build the production bundle
 ```bash
 npm run build
@@ -343,6 +353,8 @@ sudo systemctl restart nginx
 ### Test HTTPS
 Visit `https://yourdomain.com`. You should see the store with a padlock icon.
 
+If HTTPS shows a **404** while `curl http://127.0.0.1:3000/api/health` returns `{"ok":true}`, Certbot created a certificate server block that is not proxying to Next.js. Replace `/etc/nginx/sites-available/kings-collectables` with a block that listens on 443, uses the existing certificate, and `proxy_pass`es to `http://127.0.0.1:3000`. Confirm the certificate directory with `sudo ls /etc/letsencrypt/live`. Then `sudo nginx -t && sudo systemctl reload nginx`.
+
 ---
 
 ## Step 10: Set Up Stripe (Optional)
@@ -372,6 +384,58 @@ Restart the app:
 ```bash
 pm2 restart kings-collectables
 ```
+
+---
+
+## Step 10a: Schedule Daily Price Updates (Recommended)
+
+The shop can reprice cards from live Scryfall market prices every day. Any card set to **Follow market** in Inventory gets repriced each morning; manually priced cards are never touched.
+
+**1. Generate the cron secret:**
+```bash
+openssl rand -hex 16
+```
+
+**2. Add it to `.env`:**
+```bash
+nano .env
+```
+```bash
+CRON_SECRET=paste-the-16-byte-hex-here
+```
+
+**3. Restart the app:**
+```bash
+pm2 restart kings-collectables
+```
+
+**4. Add the cron job:**
+```bash
+crontab -e
+```
+Add this line (replace the key):
+```cron
+0 3 * * * curl -fsS "http://127.0.0.1:3000/api/cron/prices?key=YOUR_CRON_SECRET" >> /var/log/kings-pricing.log 2>&1
+```
+
+That runs the sync every day at 3:00 AM server time. The update runs like a normal web request, so it works safely alongside the store; results are written to `/var/log/kings-pricing.log` and readable in **/admin → Pricing**.
+
+**5. Verify it end-to-end (don't wait for tomorrow):**
+```bash
+curl -fsS "http://127.0.0.1:3000/api/cron/prices?key=YOUR_CRON_SECRET"
+```
+Expected output: `{"ok":true,"run":{…}}` after a few seconds. Wrong or missing key returns 401; if it says "Set CRON_SECRET…" the variable hasn't loaded (restart step 3).
+
+**6.(Recommended) First sync from the workspace:** open **/admin → Inventory → Pricing**, review the exchange rate, margin, rounding and condition multipliers, then flip some cards to **Follow market** and hit **Update prices now**. Every price change is recorded in Recent price changes.
+
+**7. (Optional) Price from TCGplayer directly.** The sync defaults to Scryfall prices (which themselves are TCGplayer's market price, refreshed daily). To price straight from TCGplayer's official API instead, request a free developer key pair at [developer.tcgplayer.com](https://developer.tcgplayer.com) (under **My Apps → Create Application**; approval can take a few days). Add both to `.env`:
+
+```bash
+TCGPLAYER_PUBLIC_KEY=your-public-key
+TCGPLAYER_PRIVATE_KEY=your-private-key
+```
+
+`pm2 restart kings-collectables`, then in **Pricing → Market price source**, choose **Automatic** (or **TCGplayer** to require it). Cards missing from TCGplayer still fall back to Scryfall, with the count shown in each run summary. Nothing else changes — Scryfall's complete databases provide the productId mapping, so the same cards stay followable.
 
 ---
 

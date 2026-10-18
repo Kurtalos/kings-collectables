@@ -1,5 +1,14 @@
 # Kings Collectables
 
+## Complete Magic Card Database (110,000+ Printings)
+
+The store is powered by a complete database containing every single Magic: The Gathering card and printing across the game's entire history (110,000+ card printings):
+- **Universal search**: Anyone can search for ANY card (e.g. Black Lotus, Rhystic Study, Force of Will, Dual Lands, etc.) in the search bar or on `/cards`.
+- **Out of stock display**: Cards that the store has not entered inventory for yet display as "Out of stock" with full high-resolution Scryfall card scans, set information, rarity, and oracle rules text.
+- **Wishlists & restock notifications**: Customers can add out-of-stock cards to their Wishlist or click the Bell icon to "Watch for restock".
+- **Automatic restock tracking**: When the store later enters stock (via CSV import, POS, or Add Card), watchers are automatically flagged and notified!
+- **Database sync script**: Run `node scripts/sync-all-cards.mjs` on your server at any time to sync all 110,000+ printings directly from Scryfall in ~15-20 seconds.
+
 ## Point of sale (register)
 
 Open **Register (POS)** in the workspace sidebar, or **Open register** in the top bar (`/admin/pos`). It is owner-gated by the same session as the rest of the workspace.
@@ -33,6 +42,31 @@ Credit movements are append-only in `credit_transactions` (trade-in, redemption,
 
 ## Deck builder
 
+Customers can paste an entire decklist at `/deckbuilder` instead of searching for cards one at a time.
+
+### Importing from Moxfield (and other deck sites)
+
+Paste a **Moxfield URL** straight into the decklist box and press **Find my cards** — the shop recognises the link, shows the four-click path to Moxfield's *Export → Plain Text*, and gives you a box to paste the result into. **Archidekt**, **TappedOut** and **MTGGoldfish** links work the same way.
+
+**Why not fetch the URL directly?** Moxfield has no public API and blocks server-side reads with Cloudflare (every endpoint returns 403, with no CORS headers for browsers either). Rather than build something that breaks the day they change their config, the shop detects the link and walks you through the text export — which is also the *only* method that works for private decks. The existing parser handles Moxfield's export format natively: set codes and collector numbers in parentheses, `Deck` / `Commander` / `Sideboard` / `Maybeboard` sections, `SB:` prefixes, and foil markers.
+
+**Accepted formats**
+
+```
+4 Lightning Bolt                      plain
+4x Sol Ring                           with x
+1 The One Ring (LTR) 241              set + collector number
+2 Sol Ring *F*                        foil marker
+2 Lightning Bolt *M11*                set tag
+SB: 2 Cyclonic Rift                   sideboard prefix
+1 Brisela, Voice of Nightmares // Briseole   double-faced
+Ragavan, Nimble Pilferer              bare name defaults to 1
+```
+
+Section headings (`Deck`, `Commander`, `Sideboard`, `Maybeboard`) group the results. `//` comments and export headers are skipped. Duplicate lines in the same section are merged; the same card in different sections stays separate.
+
+Limits: 400 lines, 200 different cards, 999 copies per line.
+
 Customers can paste an entire decklist at `/deckbuilder` instead of searching for cards one at a time. Paste a list, press **Find my cards**, and every line is matched against live inventory.
 
 ### Accepted formats
@@ -61,6 +95,42 @@ Each row reports **In stock**, **Partial stock**, **Out of stock**, **Not stocke
 
 ### Saved decks
 Signed-in customers can save up to 25 named decks (`decks` and `deck_items` tables) and reload them later. Saving with the same name updates the existing deck; deleting a deck cascades to its items.
+
+## Daily price updates
+
+The shop can follow live market prices from Scryfall every day — the whole point of opting in is that your prices never go stale.
+
+**How it works.** Every printing starts out **manually priced** (nothing ever changes without you opting in). In Inventory, flip individual cards to **Follow market** — the toggle sits next to the edit/delete buttons, and following cards show a blue AUTO badge. The edit-card dialog has the same checkbox; select multiple rows and use the **Follow market / Set manual** bulk buttons for the whole set. Once a day, a scheduled job fetches market prices for just the following cards from Scryfall in batches of 75, then reprices them:
+
+```
+AUD price = market USD × exchange rate × (1 + store margin %) × condition multiplier, rounded UP
+```
+
+- **Exchange rate** defaults to the ECB USD→AUD rate fetched daily from Frankfurter (cached as fallback in the database). Switching off the auto rate lets you set a fixed manual rate instead.
+- **Store margin** is your markup on top of market — default 15%, adjustable from -50% to +200%.
+- **Rounding** always rounds up so you never undercut yourself — default 50¢ increments, adjustable from exact cents up to $10 steps.
+- **Condition multipliers** price play-wear off Near Mint automatically: LP 0.85, MP 0.70, HP 0.50, Damaged 0.35 by default. All editable in the Pricing tab.
+
+### Choosing a price source
+
+The sync always resolves each card's market price through two feeds, with a clean fallback chain:
+
+- **TCGplayer (official API)** — the freshest market price available, fetched from `api.tcgplayer.com` with a free approved developer key pair (`TCGPLAYER_PUBLIC_KEY` + `TCGPLAYER_PRIVATE_KEY` in the server `.env`). Scryfall supplies each card's TCGplayer productId, so no extra mapping work is needed; finish matches price from the right `subTypeName` row (Normal versus Foil).
+- **Scryfall (default)** — kept in Scryfall's complete database. It's not a stub: Scryfall's USD price at `usd` is itself TCGplayer's market price, scored once a day. When a card has no TCGplayer mapping or its price row is missing, the sync falls back to it automatically, with the fallback count shown against every run.
+
+The Pricing tab's **Market price source** selector offers `Automatic` (TCGplayer when keys are configured, Scryfall otherwise), `TCGplayer`, and `Scryfall`. Without keys the selector explains what to configure and stays on Scryfall.
+
+**The Pricing tab** in the workspace (`/admin → Pricing`) shows the rules, how many cards follow versus stay manual, the last run's outcome (changes made, already-up-to-date, prints missing prices), and an **Update prices now** button for instant refreshes. Every price change is written to the `price_events` log with the old price, new price, the market USD price and the exchange rate used, so you can see exactly why any price moved — and undo it by editing the card again.
+
+**Scheduling on the VPS.** Set `CRON_SECRET` in `.env`, then add one line to the crontab:
+
+```cron
+0 3 * * * curl -fsS "http://127.0.0.1:3000/api/cron/prices?key=YOUR_CRON_SECRET" >> /var/log/kings-pricing.log 2>&1
+```
+
+That calls `/api/cron/prices`, which validates the secret, runs the same sync the button calls, and records the summary. Run results stay readable in the Pricing tab. Without `CRON_SECRET` the endpoint stays disabled and only manual runs work.
+
+Cards without a market price on Scryfall (old promos are the usual culprits) keep their current price and show up as failures in the run summary rather than being zeroed.
 
 ## Payments
 
@@ -121,6 +191,15 @@ An independent Australian Magic: The Gathering store built with Next.js App Rout
 The runtime needs `DATABASE_URL` pointing to PostgreSQL. Install dependencies, apply the schema using `npx drizzle-kit push`, then use `npm run dev`. The platform preview handles its own database bootstrap and production start.
 
 The first catalogue request seeds 18 sample printings and four collections. The seed is idempotent: a database marker prevents deleted stock from being recreated. Replace these sample prices and quantities with your actual inventory before publishing.
+
+## Deploying to your server
+
+See **[DEPLOY-GITHUB.md](DEPLOY-GITHUB.md)** for the full step-by-step guide covering:
+- Pushing your code to GitHub
+- One-time server setup (clone, build, database, PM2, Nginx, SSL)
+- **One-command updates** with `./scripts/deploy.sh`
+- Loading the complete 110,000+ card database
+- Why database updates are safe (schema is idempotent; card sync uses `ON CONFLICT DO NOTHING` and never touches your inventory)
 
 ## Owner protection
 

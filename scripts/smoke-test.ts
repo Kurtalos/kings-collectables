@@ -5,10 +5,11 @@ import { products, categories, imports, orders, inquiries, newsletter, customers
 import { eq, inArray } from "drizzle-orm";
 import { parseCSV } from "../src/lib/csv";
 import { parseDecklist, normaliseName, frontFace } from "../src/lib/decklist";
+import { parseDeckLink, isDeckLink, siteName } from "../src/lib/moxfield";
 import { decks, deckItems } from "../src/db/schema";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 let cookie = "", product: Record<string, any> | null = null, groupId = "", variantId = "", importId = "", orderNumber = "";
-let posCardId = "", posCardStart = 0, checkoutCardId = "", checkoutCardStart = 0;
+let posCardId = "", posCardStart = 0, checkoutCardId = "", checkoutCardStart = 0, pricingCardId = "", pricingCardStart = 0;
 const posOrderNumbers: string[] = [], posEmails: string[] = [];
 const email = `test-${Date.now()}@example.com`;
 async function api(path: string, method = "GET", body?: unknown, expected = 200) {
@@ -22,6 +23,22 @@ async function main() {
   assert.equal(parseCSV('name,quantity\r\n"Ragavan, Nimble Pilferer",2\r\n').rows[0][0], "Ragavan, Nimble Pilferer");
   assert.equal(parseCSV('name,note\n"Sol Ring","a ""quoted"" note"\n').rows[0][1], 'a "quoted" note');
   assert.throws(() => parseCSV('name,qty\n"Broken,2'));
+  // ── Deck URL detection (Moxfield and friends) ───────────────────────────
+  const mox = parseDeckLink("https://www.moxfield.com/decks/kv1SlU7yTkupKQb8sBdR6A");
+  assert.equal(mox?.site, "moxfield"); assert.equal(mox?.deckId, "kv1SlU7yTkupKQb8sBdR6A"); assert.equal(mox?.url, "https://www.moxfield.com/decks/kv1SlU7yTkupKQb8sBdR6A");
+  assert.equal(parseDeckLink("moxfield.com/decks/abc123XYZ")?.site, "moxfield", "protocol-less URLs are recognised");
+  assert.equal(parseDeckLink("  https://moxfield.com/decks/abc123  extra text")?.deckId, "abc123", "surrounding whitespace and text are ignored");
+  assert.equal(parseDeckLink("https://archidekt.com/decks/12345/my-deck")?.site, "archidekt");
+  assert.equal(parseDeckLink("https://www.tappedout.net/mtg-decks/my-deck-1")?.site, "tappedout");
+  assert.equal(parseDeckLink("https://www.mtggoldfish.com/deck/6789012")?.site, "mtggoldfish");
+  assert.equal(parseDeckLink("4 Lightning Bolt"), null, "a normal decklist line is not a link");
+  assert.equal(parseDeckLink("https://example.com/decks/abc123"), null, "unsupported sites are not treated as links");
+  assert.equal(parseDeckLink(""), null);
+  assert.equal(isDeckLink("https://www.moxfield.com/decks/kv1SlU7yTkupKQb8sBdR6A"), true);
+  assert.equal(isDeckLink("1 Sol Ring"), false);
+  assert.equal(siteName("moxfield"), "Moxfield");
+  assert.equal(siteName("archidekt"), "Archidekt");
+
   const parsed = parseDecklist("Deck\n4 Lightning Bolt\n4x Sol Ring\n1 The One Ring (LTR) 241\nSB: 2 Cyclonic Rift\nSideboard\n2 Swords to Plowshares\n\n// a comment line\n1 Lightning Bolt");
   const byName = (name: string) => parsed.cards.filter(card => card.name === name);
   assert.equal(byName("Lightning Bolt").length, 2, "same name in different sections stays separate");
@@ -308,7 +325,162 @@ async function main() {
 
   await api("/api/collections", "DELETE", { id: groupId }); groupId = "";
   fresh = await api("/api/cards"); assert.equal(fresh.products.length, catalog.products.length);
-  console.log("PASS: catalogue, CSV parsing, decklist parsing + matching, deck save/load/update/delete, order reservation/cancellation, payments, accounts, wishlists, watch lists, POS sales + validation + trade-in credit + refunds + takings, saved addresses (CRUD, default promotion, validation, cross-customer isolation), checkout with saved/inline/guest addresses.");
+  // ── Daily market price updates ─────────────────────────────────────────────
+  const { resolvePriceSource, tcgplayerConfigured, pickProductId, matchPriceRow, rowPriceCents } = await import("../src/lib/tcgplayer");
+  const { computeAudPrice, validateSettings, DEFAULT_SETTINGS } = await import("../src/lib/pricing");
+  assert.equal(tcgplayerConfigured(), Boolean(process.env.TCGPLAYER_PUBLIC_KEY && process.env.TCGPLAYER_PRIVATE_KEY));
+  if (!tcgplayerConfigured()) {
+    assert.equal(resolvePriceSource("auto"), "scryfall", "auto without keys resolves to Scryfall");
+    assert.equal(resolvePriceSource("scryfall"), "scryfall");
+    assert.throws(() => resolvePriceSource("tcgplayer"), /TCGPLAYER_PUBLIC_KEY/);
+  } else {
+    assert.equal(resolvePriceSource("auto"), "tcgplayer"); assert.equal(resolvePriceSource("tcgplayer"), "tcgplayer");
+  }
+  assert.equal(pickProductId({ tcgplayer_id: 123, tcgplayer_etched_id: 456 }, "Non-foil"), 123);
+  assert.equal(pickProductId({ tcgplayer_id: 123, tcgplayer_etched_id: 456 }, "Foil"), 123, "foils share the same productId, separated by subType row");
+  assert.equal(pickProductId({ tcgplayer_id: 123, tcgplayer_etched_id: 456 }, "Etched"), 456, "etched uses the etched productId when known");
+  assert.equal(pickProductId({ tcgplayer_id: 123, tcgplayer_etched_id: null }, "Etched"), 123, "etched falls back to the product when no etched id exists");
+  assert.equal(pickProductId({ tcgplayer_id: null, tcgplayer_etched_id: null }, "Non-foil"), null, "unmapped cards return null so Scryfall can take over");
+  const rows = [
+    { productId: 1, subTypeName: "Normal", marketPrice: 5, midPrice: 4, lowPrice: 3, highPrice: 9, directLowPrice: null },
+    { productId: 1, subTypeName: "Foil", marketPrice: null, midPrice: null, lowPrice: null, highPrice: null, directLowPrice: null },
+  ];
+  assert.equal(matchPriceRow(rows, "Non-foil")?.marketPrice, 5);
+  assert.equal(matchPriceRow(rows, "Foil")?.marketPrice, 5, "empty foil row falls back to the Normal row");
+  assert.equal(matchPriceRow([{ productId: 2, subTypeName: "Holo", marketPrice: null, midPrice: 7, lowPrice: null, highPrice: null, directLowPrice: null }], "Etched")?.midPrice, 7);
+  assert.equal(matchPriceRow([], "Non-foil"), null);
+  assert.equal(rowPriceCents(rows[0]), 500);
+  assert.equal(rowPriceCents({ productId: 1, subTypeName: "Normal", marketPrice: null, midPrice: 2.5, lowPrice: 1, highPrice: 3, directLowPrice: null }), 250, "midPrice used when marketPrice is missing");
+  assert.equal(rowPriceCents({ productId: 1, subTypeName: "Normal", marketPrice: null, midPrice: null, lowPrice: null, highPrice: 3, directLowPrice: null }), null, "no usable price yields null");
+  assert.throws(() => validateSettings({ ...DEFAULT_SETTINGS, priceSource: "snello" as never }), "junk priceSource values must be rejected");
+  assert.ok(catalog.products.some((card: any) => card.scryfallId), "every seeded product carries its Scryfall id for mapping");
+  assert.equal(computeAudPrice(1000, "Near mint", { ...DEFAULT_SETTINGS, rate: 1.5, markupPct: 15, roundingCents: 50 }, { rate: 1.5, date: "2026-01-01", source: "test" }), 1750, "AUD formula: 10.00 USD × 1.5 × 1.15 = 17.25 → rounds up to 17.50");
+  assert.equal(computeAudPrice(1000, "Damaged", DEFAULT_SETTINGS, { rate: 1.5, date: "x", source: "t" }), 650, "damaged multiplier 0.35 applies before rounding");
+  assert.equal(computeAudPrice(1, "Near mint", DEFAULT_SETTINGS, { rate: 1.5, date: "x", source: "t" }), 50, "never rounds below the rounding increment");
+  assert.throws(() => validateSettings({ ...DEFAULT_SETTINGS, markupPct: 500 }), "markupPct over 200 must be rejected");
+  assert.throws(() => validateSettings({ ...DEFAULT_SETTINGS, autoFx: false, rate: 8 }), "out-of-range manual rate must be rejected");
+  assert.throws(() => validateSettings({ ...DEFAULT_SETTINGS, conditionMultipliers: { ...DEFAULT_SETTINGS.conditionMultipliers, "Near mint": 2 } }), "multiplier over 1 must be rejected");
+  assert.doesNotThrow(() => validateSettings({ ...DEFAULT_SETTINGS, markupPct: -20, roundingCents: 250 }));
+
+  const pricingCard = catalog.products.find((card: any) => card.name === "Psychic Frog");
+  assert.ok(pricingCard, "need a Psychic Frog variant for pricing tests");
+  pricingCardId = pricingCard.id; pricingCardStart = pricingCard.price;
+
+  const pricingGet = await api("/api/pricing");
+  assert.equal(pricingGet.settings.roundingCents, 50); assert.ok(pricingGet.follow.auto === 0 && pricingGet.follow.manual >= 18);
+  assert.ok(Array.isArray(pricingGet.events)); assert.ok(pricingGet.conditions.includes("Near mint"));
+  assert.equal(typeof pricingGet.tcgplayerConfigured, "boolean"); assert.equal(pricingGet.settings.priceSource, "auto", "default source is Automatic");
+  if (!tcgplayerConfigured()) await api("/api/pricing", "PATCH", { priceSource: "tcgplayer" }, 400);
+  await api("/api/pricing", "PATCH", { priceSource: "gobbledews" }, 400);
+  const scrySource = await api("/api/pricing", "PATCH", { priceSource: "scryfall" });
+  assert.equal(scrySource.settings.priceSource, "scryfall", "Scryfall can be pinned explicitly");
+
+  await api("/api/pricing", "PATCH", { autoFx: true, markupPct: 500 }, 400);
+  await api("/api/pricing", "PATCH", { autoFx: false, rate: 9 }, 400);
+  const settingsSaved = await api("/api/pricing", "PATCH", { autoFx: false, rate: 1.5, markupPct: 0, roundingCents: 50 });
+  assert.equal(settingsSaved.settings.markupPct, 0); assert.equal(settingsSaved.settings.autoFx, false);
+
+  await api(`/api/cards/${pricingCardId}`, "PATCH", { priceMode: "nonsense" }, 400);
+  await api(`/api/cards/${pricingCardId}`, "PATCH", { price: 1, priceMode: "nonsense" }, 400);
+  await api(`/api/cards/${pricingCardId}`, "PATCH", { priceMode: "tidy" }, 400);
+  await api(`/api/cards/${pricingCardId}`, "PATCH", { price: 1, priceMode: "auto" });
+  let cardsAfter = await api("/api/cards");
+  const autoCard = cardsAfter.products.find((card: any) => card.id === pricingCardId);
+  assert.equal(autoCard.priceMode, "auto"); assert.equal(autoCard.price, 1, "starting price forced for a deterministic change");
+
+  const eventsBefore = (await api("/api/pricing")).events.filter((event: any) => event.productId === pricingCardId).length;
+  const run1 = await api("/api/pricing/update", "POST", {});
+  assert.ok(run1.run.following === 1, `expected exactly 1 card following, got ${run1.run.following}`);
+  assert.equal(run1.run.updated, 1, "the forced 1-cent price must be repriced");
+  assert.equal(run1.run.failed, 0);
+  assert.equal(run1.run.priceSource, process.env.TCGPLAYER_PUBLIC_KEY ? "tcgplayer" : "scryfall", "the run records which feed priced the cards");
+  assert.ok(typeof run1.run.fallbacks === "number" && run1.run.fallbacks >= 0);
+  assert.ok(run1.run.fx.rate > 0.5 && run1.run.fx.rate < 7);
+  cardsAfter = await api("/api/cards");
+  const repriced = cardsAfter.products.find((card: any) => card.id === pricingCardId);
+  assert.ok(repriced.usdPrice && repriced.usdPrice > 0, "market USD price must be recorded");
+  assert.equal(repriced.price, computeAudPrice(repriced.usdPrice, repriced.condition, settingsSaved.settings, { rate: 1.5, date: "d", source: "t" }), "AUD price must match the formula exactly");
+  assert.ok(repriced.price > 1);
+  assert.ok(repriced.priceUpdatedAt);
+  const eventsAfter1 = (await api("/api/pricing")).events.filter((event: any) => event.productId === pricingCardId);
+  assert.equal(eventsAfter1.length, eventsBefore + 1, "an event must be recorded for the change");
+  assert.equal(eventsAfter1[0].source, "manual"); assert.equal(eventsAfter1[0].usdPrice, repriced.usdPrice);
+
+  const run2 = await api("/api/pricing/update", "POST", {});
+  assert.equal(run2.run.updated, 0, "an unchanged market price must not duplicate events");
+  assert.equal(run2.run.unchanged, 1);
+  const eventsAfter2 = (await api("/api/pricing")).events.filter((event: any) => event.productId === pricingCardId).length;
+  assert.equal(eventsAfter2, eventsBefore + 1, "unchanged prices never write events");
+
+  await api(`/api/cards/${pricingCardId}`, "PATCH", { priceMode: "manual" });
+  const afterManual = await api("/api/pricing");
+  assert.equal(afterManual.follow.auto, 0);
+  const run3 = await api("/api/pricing/update", "POST", {});
+  assert.equal(run3.run.following, 0, "manual cards must not be repriced");
+
+  if (process.env.CRON_SECRET) {
+    const bad = await fetch(`${base}/api/cron/prices?key=wrong-key`); assert.equal(bad.status, 401);
+    const good = await fetch(`${base}/api/cron/prices?key=${encodeURIComponent(process.env.CRON_SECRET)}`);
+    assert.equal(good.status, 200);
+    assert.ok((await good.json()).ok);
+  } else {
+    const blocked = await fetch(`${base}/api/cron/prices?key=anything`);
+    assert.equal(blocked.status, 503, "cron without CRON_SECRET must report it is disabled");
+  }
+  await api("/api/pricing", "PATCH", { ...DEFAULT_SETTINGS, priceSource: "auto" });
+
+  // ── Customer management (owner workspace) ────────────────────────────────
+  if (process.env.ADMIN_PASSWORD) {
+    const unauthCustomers = await fetch(`${base}/api/customers`);
+    assert.equal(unauthCustomers.status, 401, "customer list must be owner-only");
+  }
+  const badCustomerId = await api("/api/customers?id=not-a-uuid", "GET", undefined, 400);
+  assert.ok(badCustomerId.error);
+  const missingCustomer = await api("/api/customers?id=00000000-0000-4000-8000-000000000000", "GET", undefined, 404);
+  assert.ok(missingCustomer.error);
+  await api("/api/customers", "PATCH", { id: "not-a-uuid", amount: 500 }, 400);
+  await api("/api/customers", "PATCH", { id: profile.customer.id, amount: 0 }, 400);
+  await api("/api/customers", "PATCH", { id: profile.customer.id, amount: 9999999 }, 400);
+
+  const customerList = await api("/api/customers?search=" + encodeURIComponent(posEmail));
+  assert.ok(customerList.customers.length >= 1, "the POS customer should be findable by email");
+  const target = customerList.customers.find((entry: any) => entry.email === posEmail);
+  assert.ok(target);
+  assert.ok(!("passwordHash" in target), "customer rows must never leak the password hash");
+  assert.ok(typeof target.totalSpent === "number" && typeof target.orderCount === "number");
+  assert.ok(typeof target.wishlistCount === "number" && typeof target.watchlistCount === "number" && typeof target.addressCount === "number");
+  assert.ok(customerList.totals && typeof customerList.totals.customers === "number");
+  const noMatches = await api("/api/customers?search=zzzznobodyzzzz");
+  assert.equal(noMatches.customers.length, 0, "an unknown search should return no rows");
+  const sortedBySpend = await api("/api/customers?sort=spend");
+  assert.ok(sortedBySpend.customers.every((entry: any, index: number, all: any[]) => index === 0 || all[index - 1].totalSpent >= entry.totalSpent), "spend sort should be descending");
+  const sortedByName = await api("/api/customers?sort=name");
+  assert.ok(sortedByName.customers.every((entry: any, index: number, all: any[]) => index === 0 || all[index - 1].name.localeCompare(entry.name) <= 0), "name sort should be alphabetical");
+
+  const detail = await api(`/api/customers?id=${profile.customer.id}`);
+  assert.equal(detail.customer.email, posEmail);
+  assert.ok(!("passwordHash" in detail.customer), "detail must never leak the password hash");
+  assert.ok(Array.isArray(detail.orders) && detail.orders.length >= 1, "the customer's POS orders should be listed");
+  assert.ok(detail.orders.some((order: any) => order.items.length >= 1), "orders should include their line items");
+  assert.ok(Array.isArray(detail.wishlist) && Array.isArray(detail.watchlist) && Array.isArray(detail.addresses) && Array.isArray(detail.credits));
+  const creditAdjust = await api("/api/customers", "PATCH", { id: profile.customer.id, amount: 750, reason: "Test goodwill" });
+  assert.equal(creditAdjust.customer.creditBalance, (await api(`/api/customers?id=${profile.customer.id}`)).customer.creditBalance);
+  assert.ok(creditAdjust.customer.creditBalance > 0);
+  const creditsAfter = (await api(`/api/customers?id=${profile.customer.id}`)).credits;
+  assert.ok(creditsAfter.some((entry: any) => entry.amount === 750 && entry.reason === "Test goodwill"), "the adjustment should appear in the credit log");
+  const creditOverspend = await api("/api/customers", "PATCH", { id: profile.customer.id, amount: -999999 }, 400);
+  assert.ok(creditOverspend.error, "credit cannot go negative");
+
+  // ── Complete MTG card database & out-of-stock search ────────────────────────
+  const lotusSearch = await (await fetch(`${base}/api/cards/search?q=Black+Lotus`)).json();
+  assert.ok(lotusSearch.cards.length >= 1, "Black Lotus should be found in search even when out of stock");
+  assert.equal(lotusSearch.cards[0].quantity, 0, "out-of-stock cards should have 0 quantity");
+  assert.ok(lotusSearch.cards[0].imageUrl.startsWith("http"), "out-of-stock cards should have high-res image scans");
+
+  const rhysticSearch = await (await fetch(`${base}/api/cards/search?q=Rhystic+Study`)).json();
+  assert.ok(rhysticSearch.cards.length >= 1, "Rhystic Study printings should be found in search");
+
+  console.log("PASS: catalogue, CSV parsing, decklist parsing + matching, deck URL detection (Moxfield/Archidekt/TappedOut/MTGGoldfish) + Moxfield export parsing, deck save/load/update/delete, order reservation/cancellation, payments, accounts, wishlists, watch lists, POS sales + validation + trade-in credit + refunds + takings, saved addresses (CRUD, default promotion, validation, cross-customer isolation), checkout with saved/inline/guest addresses, daily market pricing (formula, settings validation, follow manual toggle, deterministic repricing, event log idempotence, all-manual guard, cron key handling, customer management (owner auth, no password-hash leakage, search + sorts, order/wishlist/watch/address/credit detail, credit adjustments with log), complete MTG card database (universal search, out-of-stock cards, restock watch & notifications).");
 }
 main().finally(async () => {
   if (product) await db.update(products).set({ price: product.price, quantity: product.quantity }).where(eq(products.id, product.id));

@@ -15,6 +15,9 @@ export type Card = {
   condition: string;
   finish: string;
   price: number;
+  priceMode: "auto" | "manual";
+  usdPrice: number | null;
+  priceUpdatedAt: string | null;
   quantity: number;
   featured: boolean;
   createdAt: string;
@@ -40,7 +43,26 @@ export type ImportInput = { name?: string; set?: string; collector_number?: stri
 export type ImportRow = {
   row: number; name: string; set: string; quantity: number; price: number; condition: string; finish: string;
   category: string; error?: string; existing?: boolean;
-  card?: Omit<Card, "id" | "createdAt" | "categoryIds" | "quantity" | "price" | "condition" | "finish">;
+  card?: import("./scryfall").CardMetadata;
+};
+export type PricingSettings = {
+  autoFx: boolean;
+  rate: number;
+  markupPct: number;
+  roundingCents: number;
+  conditionMultipliers: Record<string, number>;
+  priceSource: "auto" | "tcgplayer" | "scryfall";
+};
+export type FxRate = { rate: number; date: string; source: string };
+export type PriceRun = {
+  ranAt: string; source: "daily" | "manual"; following: number;
+  updated: number; unchanged: number; failed: number;
+  priceSource: "tcgplayer" | "scryfall"; fallbacks: number; fx: FxRate;
+};
+export type PriceEvent = {
+  id: string; productId: string; cardName: string; variant: string;
+  oldPrice: number; newPrice: number; usdPrice: number; rate: number;
+  source: string; createdAt: string;
 };
 export const CONDITIONS = ["Near mint", "Lightly played", "Moderately played", "Heavily played", "Damaged"];
 export const FINISHES = ["Non-foil", "Foil", "Etched"];

@@ -3,6 +3,7 @@ import { products, categories, productCategories } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { apiError, requireOwner } from "@/lib/admin-auth";
 import { readBody, isUUID, validateStock, validatePrice, validateVariant } from "@/lib/validation";
+import { checkAndNotifyRestock } from "@/lib/restock";
 export const dynamic = "force-dynamic";
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -16,14 +17,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const quantity = body.quantity === undefined ? existing.quantity : validateStock(body.quantity);
     const condition = String(body.condition || existing.condition), finish = String(body.finish || existing.finish);
     validateVariant(condition, finish);
+    const priceModeRaw = body.priceMode;
+    let priceMode = existing.priceMode;
+    if (priceModeRaw !== undefined) {
+      const mode = String(priceModeRaw);
+      if (mode !== "auto" && mode !== "manual") throw new Error("Price mode must be 'auto' (follow market) or 'manual'.");
+      priceMode = mode;
+    }
     const groupIds = body.categoryIds;
     if (groupIds !== undefined && (!Array.isArray(groupIds) || groupIds.length > 30 || !groupIds.every(isUUID))) throw new Error("Choose valid collections.");
     if (Array.isArray(groupIds) && groupIds.length && (await db.select().from(categories).where(inArray(categories.id, groupIds))).length !== new Set(groupIds).size) throw new Error("One of the collections no longer exists.");
     const [updated] = await db.transaction(async tx => {
-      const result = await tx.update(products).set({ price, quantity, condition, finish, featured: body.featured === undefined ? existing.featured : Boolean(body.featured) }).where(eq(products.id, id)).returning();
+      const [existingRow] = await tx.select().from(products).where(eq(products.id, id)).for("update");
+      const oldQuantity = existingRow?.quantity || 0;
+      const result = await tx.update(products).set({ price, quantity, condition, finish, priceMode, featured: body.featured === undefined ? existing.featured : Boolean(body.featured) }).where(eq(products.id, id)).returning();
       if (Array.isArray(groupIds)) {
         await tx.delete(productCategories).where(eq(productCategories.productId, id));
         if (groupIds.length) await tx.insert(productCategories).values([...new Set(groupIds)].map(categoryId => ({ productId: id, categoryId })));
+      }
+      if (oldQuantity === 0 && quantity > 0) {
+        await checkAndNotifyRestock(id, oldQuantity, quantity);
       }
       return result;
     });
