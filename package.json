@@ -12,9 +12,7 @@
     "test:inventory": "tsx --test scripts/inventory-unit.test.ts",
     "test:inventory:db": "tsx scripts/inventory-db.test.ts",
     "test:inventory:browser": "node scripts/inventory-browser.mjs",
-    "test:inventory:database": "tsx scripts/inventory-test-db.ts",
-    "test:picklist": "tsx --test scripts/picklist.test.ts",
-    "test:admin-inventory": "tsx scripts/admin-inventory.test.ts"
+    "test:inventory:database": "tsx scripts/inventory-test-db.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",

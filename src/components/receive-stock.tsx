@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { requestJSON } from "./ui";
-import { AcquisitionHistory } from "./acquisition-history";
 import { ACQUISITION_TYPES } from "@/lib/inventory-input";
 import { CONDITIONS, FINISHES, money } from "@/lib/types";
 import { parseCSV, downloadCSV } from "@/lib/csv";
@@ -81,7 +80,20 @@ export function ReceiveStock({
       knownValue: string;
       unknownUnits: string;
     } | null>(null);
-  const [historyId, setHistoryId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{
+    card: Card;
+    lots: {
+      id: string;
+      acquiredQuantity: number;
+      remainingQuantity: number;
+      unitCost: number | null;
+      acquisitionType: string;
+      acquiredAt: string;
+      supplier: string;
+      reference: string;
+      note: string;
+    }[];
+  } | null>(null);
   const [customerId, setCustomerId] = useState(""),
     [credit, setCredit] = useState("");
   const [customerQuery, setCustomerQuery] = useState(""),
@@ -204,7 +216,6 @@ export function ReceiveStock({
             value={type}
             onChange={(e) => {
               setType(e.target.value);
-              if (e.target.value !== "Trade-in") setCustomerId("");
               setPreview(null);
             }}
           >
@@ -214,7 +225,7 @@ export function ReceiveStock({
           </select>
         </label>
         <label>
-          Default cost for new cards (AUD)
+          Default unit acquisition cost (AUD)
           <input
             type="number"
             min="0"
@@ -330,46 +341,25 @@ export function ReceiveStock({
         <span className="eyebrow">INVENTORY INTAKE</span>
         <h2>Receive stock</h2>
         <p>
-          Find your cards, build a receipt, and receive everything together.
-          Your selling prices stay unchanged.
+          Add copies to existing printings. Acquisition costs never change your
+          selling prices.
         </p>
-        <ol className="receive-steps" aria-label="Receiving steps">
-          <li className={!preview ? "current" : "complete"}>
-            <span>1</span> Find cards
-          </li>
-          <li className={rows.length && !preview ? "current" : ""}>
-            <span>2</span> Build receipt
-          </li>
-          <li className={preview ? "current" : ""}>
-            <span>3</span> Review & receive
-          </li>
-        </ol>
       </header>
       {totals && (
-        <details className="receive-snapshot">
-          <summary>Inventory snapshot</summary>
-          <div className="receive-stats">
-            <span>
-              <strong>{Number(totals.units).toLocaleString()}</strong> available
-              units
-            </span>
-            <span>
-              <strong>{money(Number(totals.knownValue))}</strong> known
-              remaining cost
-            </span>
-            <span>
-              <strong>{Number(totals.unknownUnits).toLocaleString()}</strong>{" "}
-              units with unknown cost
-            </span>
-          </div>
-        </details>
-      )}
-      {historyId && (
-        <AcquisitionHistory
-          key={historyId}
-          productId={historyId}
-          onClose={() => setHistoryId(null)}
-        />
+        <div className="receive-stats">
+          <span>
+            <strong>{Number(totals.units).toLocaleString()}</strong> available
+            units
+          </span>
+          <span>
+            <strong>{money(Number(totals.knownValue))}</strong> known remaining
+            cost
+          </span>
+          <span>
+            <strong>{Number(totals.unknownUnits).toLocaleString()}</strong>{" "}
+            units with unknown cost
+          </span>
+        </div>
       )}
       {error && (
         <p role="alert" className="form-error">
@@ -422,294 +412,240 @@ export function ReceiveStock({
         </div>
       ) : (
         <>
-          <div className="receive-builder">
-            <div className="receive-search">
-              <div className="receive-panel-title">
-                <span className="receive-step-number">1</span>
-                <div>
-                  <h3>Find a printing</h3>
-                  <p>Search any card, even when it’s out of stock.</p>
-                </div>
-              </div>
-              <label>
-                Search the complete catalogue
-                <input
-                  value={q}
-                  onChange={(e) => {
-                    setQ(e.target.value);
-                    setPage(0);
-                  }}
-                  placeholder="Card name, printing, set or collector number"
-                />
-              </label>
-              <div className="receive-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Printing / variant</th>
-                      <th>Available</th>
-                      <th>Selling price</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {!cards.length && (
-                      <tr>
-                        <td colSpan={4}>
-                          No matching printings. Try a card name, set code or
-                          collector number.
-                        </td>
-                      </tr>
-                    )}
-                    {cards.map((c) => (
-                      <tr key={c.id}>
-                        <td>
-                          {c.name}
-                          <small>
-                            {c.setCode.toUpperCase()} #{c.collectorNumber} ·{" "}
-                            {c.condition} · {c.finish}
-                          </small>
-                        </td>
-                        <td>{c.quantity}</td>
-                        <td>{money(c.price)}</td>
-                        <td>
-                          <button
-                            className="button button-outline"
-                            onClick={() =>
-                              setRows((r) => [
-                                ...r,
-                                {
-                                  productId: c.id,
-                                  name: c.name,
-                                  printing: `${c.setCode.toUpperCase()} #${c.collectorNumber}`,
-                                  acquisition_type: type,
-                                  quantity: "1",
-                                  condition: c.condition,
-                                  finish: c.finish,
-                                  unit_cost_aud: cost,
-                                },
-                              ])
+          {defaults}
+          <div className="receive-search">
+            <h3>Find a printing</h3>
+            <label>
+              Search the complete catalogue
+              <input
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setPage(0);
+                }}
+                placeholder="Card name, printing, set or collector number"
+              />
+            </label>
+            <div className="receive-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Printing / variant</th>
+                    <th>Available</th>
+                    <th>Selling price</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cards.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        {c.name}
+                        <small>
+                          {c.setCode.toUpperCase()} #{c.collectorNumber} ·{" "}
+                          {c.condition} · {c.finish}
+                        </small>
+                      </td>
+                      <td>{c.quantity}</td>
+                      <td>{money(c.price)}</td>
+                      <td>
+                        <button
+                          className="button button-outline"
+                          onClick={() =>
+                            setRows((r) => [
+                              ...r,
+                              {
+                                productId: c.id,
+                                name: c.name,
+                                quantity: "1",
+                                condition: c.condition,
+                                finish: c.finish,
+                                unit_cost_aud: cost,
+                              },
+                            ])
+                          }
+                        >
+                          Add stock
+                        </button>{" "}
+                        <button
+                          onClick={async () => {
+                            try {
+                              const r = await requestJSON<{
+                                lots: NonNullable<typeof detail>["lots"];
+                              }>(`/api/inventory?productId=${c.id}`);
+                              setDetail({ card: c, lots: r.lots });
+                            } catch (e) {
+                              setError(String(e));
                             }
-                          >
-                            Add stock
-                          </button>{" "}
-                          <button
-                            onClick={() => setHistoryId(c.id)}
-                            aria-label={`View stock history for ${c.name}`}
-                          >
-                            History
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          }}
+                        >
+                          Lots / margin
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button disabled={!page} onClick={() => setPage((p) => p - 1)}>
+              Previous
+            </button>{" "}
+            <span>Page {page + 1}</span>{" "}
+            <button disabled={!hasMore} onClick={() => setPage((p) => p + 1)}>
+              Next
+            </button>
+          </div>
+          {detail && (
+            <div className="receive-detail">
+              <button onClick={() => setDetail(null)}>Close details</button>
+              <h3>{detail.card.name} — acquisition lots</h3>
+              <p>
+                Selling price {money(detail.card.price)} · remaining known value{" "}
+                {money(
+                  detail.lots.reduce(
+                    (s, l) => s + (l.unitCost || 0) * l.remainingQuantity,
+                    0,
+                  ),
+                )}
+              </p>
+              {(() => {
+                const units = detail.lots.reduce(
+                    (s, l) => s + l.remainingQuantity,
+                    0,
+                  ),
+                  value = detail.lots.reduce(
+                    (s, l) => s + (l.unitCost || 0) * l.remainingQuantity,
+                    0,
+                  ),
+                  unknown = detail.lots.some(
+                    (l) => l.remainingQuantity > 0 && l.unitCost === null,
+                  );
+                return (
+                  <p>
+                    Average remaining unit cost:{" "}
+                    {unknown
+                      ? "Unknown"
+                      : units
+                        ? money(Math.round(value / units))
+                        : "No stock"}{" "}
+                    ·{" "}
+                    {unknown
+                      ? "Estimated profit / margin unavailable: some costs are unknown"
+                      : units
+                        ? `Estimated gross profit ${money(Math.round(detail.card.price - value / units))} per copy; margin ${detail.card.price ? ((1 - value / units / detail.card.price) * 100).toFixed(1) : "0"}% (before fees)`
+                        : "No remaining lots"}
+                  </p>
+                );
+              })()}
+              {detail.lots.map((l) => (
+                <p key={l.id}>
+                  {l.acquiredAt.slice(0, 10)} · {l.acquisitionType} ·{" "}
+                  {l.remainingQuantity}/{l.acquiredQuantity} remaining ·{" "}
+                  {l.unitCost === null
+                    ? "Unknown cost"
+                    : `${money(l.unitCost)} / copy`}{" "}
+                  · {l.supplier} · {l.reference} · {l.note}
+                </p>
+              ))}
+            </div>
+          )}
+          {rows.length > 0 && (
+            <div className="stack-form">
+              <h3>Receipt lines ({rows.length})</h3>
+              <div className="receive-scroll">
+                {rows.map((r, i) => (
+                  <div className="receive-line" key={i}>
+                    <strong>{r.name}</strong>
+                    <label>
+                      Quantity
+                      <input
+                        type="number"
+                        min="1"
+                        max="100000"
+                        value={r.quantity}
+                        onChange={(e) =>
+                          setRows((a) =>
+                            a.map((v, j) =>
+                              j === i ? { ...v, quantity: e.target.value } : v,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                    <label>
+                      Condition
+                      <select
+                        value={r.condition}
+                        onChange={(e) =>
+                          setRows((a) =>
+                            a.map((v, j) =>
+                              j === i ? { ...v, condition: e.target.value } : v,
+                            ),
+                          )
+                        }
+                      >
+                        {CONDITIONS.map((v) => (
+                          <option key={v}>{v}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Finish
+                      <select
+                        value={r.finish}
+                        onChange={(e) =>
+                          setRows((a) =>
+                            a.map((v, j) =>
+                              j === i ? { ...v, finish: e.target.value } : v,
+                            ),
+                          )
+                        }
+                      >
+                        {FINISHES.map((v) => (
+                          <option key={v}>{v}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Unit cost AUD
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={r.unit_cost_aud}
+                        placeholder="Unknown"
+                        onChange={(e) =>
+                          setRows((a) =>
+                            a.map((v, j) =>
+                              j === i
+                                ? { ...v, unit_cost_aud: e.target.value }
+                                : v,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                    <button
+                      onClick={() =>
+                        setRows((a) => a.filter((_, j) => j !== i))
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
               </div>
-              <button disabled={!page} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </button>{" "}
-              <span>Page {page + 1}</span>{" "}
-              <button disabled={!hasMore} onClick={() => setPage((p) => p + 1)}>
-                Next
+              <button
+                className="button button-primary"
+                disabled={busy}
+                onClick={() => review(rows)}
+              >
+                Review receipt
               </button>
             </div>
-            <aside className="receive-receipt">
-              <div className="receive-panel-title">
-                <span className="receive-step-number">2</span>
-                <div>
-                  <h3>
-                    Your receipt <em>{rows.length}</em>
-                  </h3>
-                  <p>Add as many cards as you need before saving.</p>
-                </div>
-              </div>
-              <div className="receive-defaults">
-                {defaults}
-                <small>
-                  Defaults apply to cards you add next. Each line can have its
-                  own source and cost. Blank cost means unknown.
-                </small>
-              </div>
-              {!rows.length && (
-                <div className="receive-empty">
-                  <span aria-hidden="true">＋</span>
-                  <h4>Start with a card</h4>
-                  <p>
-                    Use “Add stock” in search. Your cards will appear here,
-                    ready for quantities and costs.
-                  </p>
-                </div>
-              )}
-              {rows.length > 0 && (
-                <div className="stack-form">
-                  <h4 className="receipt-lines-heading">
-                    Receipt lines ({rows.length})
-                  </h4>
-                  <div className="receive-scroll">
-                    {rows.map((r, i) => (
-                      <div className="receive-line" key={i}>
-                        <div className="receive-line-title">
-                          <div>
-                            <strong>{r.name}</strong>
-                            <small>{r.printing}</small>
-                          </div>
-                          <button
-                            aria-label={`Remove ${r.name} receipt line ${i + 1}`}
-                            onClick={() =>
-                              setRows((a) => a.filter((_, j) => j !== i))
-                            }
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <div className="receive-line-fields">
-                          <label>
-                            Quantity
-                            <input
-                              type="number"
-                              min="1"
-                              max="100000"
-                              value={r.quantity}
-                              onChange={(e) =>
-                                setRows((a) =>
-                                  a.map((v, j) =>
-                                    j === i
-                                      ? { ...v, quantity: e.target.value }
-                                      : v,
-                                  ),
-                                )
-                              }
-                            />
-                          </label>
-                          <label>
-                            Condition
-                            <select
-                              aria-label="Condition"
-                              value={r.condition}
-                              onChange={(e) =>
-                                setRows((a) =>
-                                  a.map((v, j) =>
-                                    j === i
-                                      ? { ...v, condition: e.target.value }
-                                      : v,
-                                  ),
-                                )
-                              }
-                            >
-                              {CONDITIONS.map((v) => (
-                                <option key={v}>{v}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <label>
-                            Finish
-                            <select
-                              aria-label="Finish"
-                              value={r.finish}
-                              onChange={(e) =>
-                                setRows((a) =>
-                                  a.map((v, j) =>
-                                    j === i
-                                      ? { ...v, finish: e.target.value }
-                                      : v,
-                                  ),
-                                )
-                              }
-                            >
-                              {FINISHES.map((v) => (
-                                <option key={v}>{v}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <label>
-                            Unit cost AUD
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={r.unit_cost_aud}
-                              placeholder="Unknown"
-                              onChange={(e) =>
-                                setRows((a) =>
-                                  a.map((v, j) =>
-                                    j === i
-                                      ? { ...v, unit_cost_aud: e.target.value }
-                                      : v,
-                                  ),
-                                )
-                              }
-                            />
-                          </label>
-                          <label>
-                            Source
-                            <select
-                              aria-label="Source"
-                              value={r.acquisition_type || type}
-                              onChange={(e) =>
-                                setRows((a) =>
-                                  a.map((v, j) =>
-                                    j === i
-                                      ? {
-                                          ...v,
-                                          acquisition_type: e.target.value,
-                                        }
-                                      : v,
-                                  ),
-                                )
-                              }
-                            >
-                              {ACQUISITION_TYPES.map((t) => (
-                                <option key={t}>{t}</option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="receive-receipt-total">
-                    <span>
-                      {rows.reduce(
-                        (sum, r) => sum + Number(r.quantity || 0),
-                        0,
-                      )}{" "}
-                      copies to receive
-                    </span>
-                    <strong>
-                      {money(
-                        rows.reduce(
-                          (sum, r) =>
-                            sum +
-                            Math.round(Number(r.unit_cost_aud || 0) * 100) *
-                              Number(r.quantity || 0),
-                          0,
-                        ),
-                      )}{" "}
-                      known cost
-                    </strong>
-                    <small>
-                      {rows.filter((r) => !r.unit_cost_aud?.trim()).length}{" "}
-                      lines with unknown cost
-                    </small>
-                  </div>
-                  <button
-                    className="button button-primary receive-review-button"
-                    disabled={busy}
-                    onClick={() => review(rows)}
-                  >
-                    Review receipt
-                  </button>
-                </div>
-              )}
-            </aside>
-          </div>
+          )}
           <details className="receive-csv">
-            <summary>
-              <span>Bulk collection / CSV intake</span>
-              <small>
-                Have a list already? Upload or paste your collection.
-              </small>
-            </summary>
+            <summary>Bulk collection / CSV intake</summary>
             <p>
               Upload or paste CSV, map columns, then preview exact printing
               matches. Blank costs remain unknown. Duplicate lines retain their
