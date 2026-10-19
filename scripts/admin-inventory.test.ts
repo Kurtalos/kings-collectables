@@ -370,7 +370,7 @@ async function main() {
 
     const downloadPromise = page.waitForEvent("download");
     await page
-      .getByRole("button", { name: "Export Picklist", exact: true })
+      .getByRole("button", { name: "Export Picklist PDF", exact: true })
       .click();
     const download = await downloadPromise;
     assert.match(download.suggestedFilename(), /kings-picklist/);

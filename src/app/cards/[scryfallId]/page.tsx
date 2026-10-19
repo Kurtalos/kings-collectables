@@ -1,3 +1,4 @@
+import { getStoreSettings } from "@/lib/store-settings-server";
 import { getCardPrintings } from "@/lib/catalog";
 import { Storefront } from "@/components/storefront";
 import type { Metadata } from "next";
@@ -9,7 +10,7 @@ export async function generateMetadata({ params }: { params: Promise<{ scryfallI
   const { scryfallId } = await params;
   const { card } = await getCardPrintings(scryfallId);
   if (!card) return { title: "Card not found" };
-  return { title: card.name, description: `${card.name} — every printing available at Kings Collectables.` };
+  return { title: card.name, description: `${card.name} — every printing available at ${(await getStoreSettings()).storeName}.` };
 }
 
 export default async function CardDetailPage({ params }: { params: Promise<{ scryfallId: string }> }) {

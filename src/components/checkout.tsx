@@ -1,4 +1,6 @@
 "use client";
+import { useStoreSettings } from "./store-settings-provider";
+import { shippingCost } from "@/lib/store-settings";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -7,7 +9,7 @@ import { Brand, EmptyState, requestJSON } from "./ui";
 import { StripePaymentForm } from "./payment-form";
 import { AU_STATES, describeAddress, type AddressFields } from "@/lib/address";
 import { BANK_DETAILS } from "@/lib/store-config";
-import { money, FREE_SHIPPING_THRESHOLD, SHIPPING_FLAT, type Card, type Customer, type SavedAddress, type CartLine } from "@/lib/types";
+import { money, type Card, type Customer, type SavedAddress, type CartLine } from "@/lib/types";
 
 type Step = "details" | "delivery" | "payment";
 const STEPS: { id: Step; label: string; hint: string }[] = [
@@ -21,6 +23,9 @@ const BLANK: AddressFields = { label: "Home", recipientName: "", line1: "", line
 export function Checkout({ initialProducts, customer, addresses: initialAddresses, cardAvailable, publishableKey }: {
   initialProducts: Card[]; customer: Customer | null; addresses: SavedAddress[]; cardAvailable: boolean; publishableKey: string;
 }) {
+  const settings = useStoreSettings();
+  const FREE_SHIPPING_THRESHOLD = settings.freeShippingThreshold;
+  const SHIPPING_FLAT = settings.shippingFlat;
   const router = useRouter();
   const [cart, setCart] = useState<CartLine[]>([]), [ready, setReady] = useState(false);
   const [step, setStep] = useState<Step>("details"), [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -50,7 +55,7 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
   useEffect(() => { if (!ready) return; try { localStorage.setItem("kings-cart", JSON.stringify(cart.map(line => ({ id: line.product.id, quantity: line.quantity })))); } catch { /* Checkout still works without browser storage. */ } }, [cart, ready]);
 
   const subtotal = useMemo(() => cart.reduce((sum, line) => sum + line.product.price * line.quantity, 0), [cart]);
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FLAT;
+  const shipping = shippingCost(subtotal, settings);
   const total = subtotal + shipping;
   const units = cart.reduce((sum, line) => sum + line.quantity, 0);
   const selected = addresses.find(address => address.id === selectedId) || null;
@@ -89,7 +94,7 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
     setBusy(true); setError("");
     try {
       const payload: Record<string, unknown> = {
-        customerName: details.name.trim(), email: details.email.trim(),
+        customerName: details.name.trim(), email: details.email.trim(), expectedShipping: shipping,
         items: cart.map(line => ({ productId: line.product.id, quantity: line.quantity })),
       };
       if (addressMode === "saved" && selected) payload.addressId = selected.id;
@@ -173,7 +178,7 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
                 {customer && <label className="checkout-checkbox"><input type="checkbox" checked={saveAddress} onChange={event => setSaveAddress(event.target.checked)}/><span><strong>{editing ? "Update this saved address" : "Save this address for next time"}</strong><small>You can manage saved addresses any time in your account.</small></span></label>}
                 <div className="checkout-address-actions">{editing && <button className="button button-outline" onClick={() => { setEditing(null); setDraft(BLANK); setAddressMode(addresses.length ? "saved" : "new"); }}>Cancel edit</button>}<button className="button button-primary" disabled={busy || !deliveryReady} onClick={saveDraftAddress}>{busy ? <LoaderCircle className="spin" size={15}/> : <Check size={15}/>} {editing ? "Update address" : "Save & use this address"}</button></div>
               </div>}
-            <div className="checkout-shipping-note"><Truck size={16}/><span>Tracked delivery across Australia. {subtotal >= FREE_SHIPPING_THRESHOLD ? "You've unlocked free shipping on this order." : `${money(FREE_SHIPPING_THRESHOLD - subtotal)} more for free shipping.`}</span></div>
+            <div className="checkout-shipping-note"><Truck size={16}/><span>Tracked delivery across Australia. {shipping === 0 ? "You've unlocked free shipping on this order." : FREE_SHIPPING_THRESHOLD !== null ? `${money(FREE_SHIPPING_THRESHOLD - subtotal)} more for free shipping.` : `Flat shipping ${money(SHIPPING_FLAT)}.`}</span></div>
             <div className="checkout-actions"><button className="button button-ghost" onClick={() => setStep("details")}><ArrowLeft size={15}/> Back</button><span className="checkout-step-count">Step 2 of 3</span><button className="button button-primary" disabled={!deliveryReady} onClick={() => { setStep("payment"); setError(""); }}>Continue to payment <ArrowRight size={16}/></button></div>
           </section>}
 
@@ -195,7 +200,7 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
               <div className="checkout-review-grid">
                 <div><span>Contact</span><strong>{details.name}</strong><small>{details.email}</small></div>
                 <div><span>Delivering to</span><strong>{addressMode === "saved" && selected ? selected.recipientName : draft.recipientName}</strong><small>{addressMode === "saved" && selected ? describeAddress(selected) : describeAddress(draft)}</small></div>
-                <div><span>Cards</span><strong>{units} across {cart.length} {cart.length === 1 ? "line" : "lines"}</strong><small>{subtotal >= FREE_SHIPPING_THRESHOLD ? "Free tracked shipping" : `Tracked shipping ${money(SHIPPING_FLAT)}`}</small></div>
+                <div><span>Cards</span><strong>{units} across {cart.length} {cart.length === 1 ? "line" : "lines"}</strong><small>{shipping === 0 ? "Free tracked shipping" : `Tracked shipping ${money(SHIPPING_FLAT)}`}</small></div>
                 <div><span>Total</span><strong className="checkout-review-total">{money(total)}</strong><small>AUD, including shipping</small></div>
               </div>
               <div className="checkout-review-actions"><button className="checkout-edit-link" onClick={() => setStep("details")}><Pencil size={12}/> Edit details</button><button className="checkout-edit-link" onClick={() => setStep("delivery")}><Pencil size={12}/> Edit delivery</button></div>
@@ -212,7 +217,7 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
             <div><strong>{line.product.name}</strong><small>{line.product.condition} · {line.product.finish}</small>
               <div className="checkout-line-controls"><button onClick={() => adjust(line.product.id, -1)} aria-label={`Decrease ${line.product.name}`}><Minus size={11}/></button><span>{line.quantity}</span><button onClick={() => adjust(line.product.id, 1)} disabled={line.quantity >= line.product.quantity} aria-label={`Increase ${line.product.name}`}><Plus size={11}/></button><button className="checkout-line-remove" onClick={() => adjust(line.product.id, -line.quantity)} aria-label={`Remove ${line.product.name}`}><X size={11}/></button></div>
             </div><b>{money(line.product.price * line.quantity)}</b></div>)}</div>
-          <div className="checkout-summary-totals"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Tracked shipping</span><strong>{shipping ? money(shipping) : <em>Free</em>}</strong></div>{shipping > 0 && <small className="checkout-progress-hint">{money(FREE_SHIPPING_THRESHOLD - subtotal)} more for free shipping</small>}<div className="checkout-summary-total"><span>Total</span><strong>{money(total)} <i>AUD</i></strong></div></div>
+          <div className="checkout-summary-totals"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Tracked shipping</span><strong>{shipping ? money(shipping) : <em>Free</em>}</strong></div>{shipping > 0 && FREE_SHIPPING_THRESHOLD !== null && <small className="checkout-progress-hint">{money((FREE_SHIPPING_THRESHOLD ?? 0) - subtotal)} more for free shipping</small>}<div className="checkout-summary-total"><span>Total</span><strong>{money(total)} <i>AUD</i></strong></div></div>
           <div className="checkout-trust"><span><ShieldCheck size={13}/> Condition graded honestly</span><span><Truck size={13}/> Tracked Australia-wide</span><span><Lock size={13}/> We never store card details</span></div>
         </aside>
       </div>

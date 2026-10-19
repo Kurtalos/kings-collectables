@@ -3,9 +3,9 @@ import path from "node:path";
 import type { PickLine } from "./picklist";
 
 /** Each order starts on a fresh A4 page; long orders repeat their heading and columns. */
-export async function picklistPDF(lines: PickLine[]): Promise<Buffer> {
+export async function picklistPDF(lines: PickLine[], storeName = "Kings Collectables"): Promise<Buffer> {
   const doc = new PDFDocument({ size: "A4", margin: 36, autoFirstPage: false,
-    info: { Title: "Kings Collectables — Order picklists", Author: "Kings Collectables" } });
+    info: { Title: `${storeName} — Order picklists`, Author: storeName } });
   const chunks: Buffer[] = [];
   const output = new Promise<Buffer>((resolve, reject) => {
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -29,7 +29,7 @@ export async function picklistPDF(lines: PickLine[]): Promise<Buffer> {
     let part = 0;
     const heading = () => {
       doc.addPage(); page++; part++;
-      doc.font("bold").fontSize(17).fillColor("#161616").text("KINGS COLLECTABLES", 36, 32);
+      doc.font("bold").fontSize(17).fillColor("#161616").text(storeName.toUpperCase(), 36, 32, { width: 523, height: 22, ellipsis: true });
       doc.font("regular").fontSize(9).fillColor("#555555").text(`ORDER PICKLIST  •  Packing  •  Page ${page}`, 36, 58);
       doc.font("bold").fontSize(13).fillColor("#161616").text(`Order ${number}${part > 1 ? " — continued" : ""}`, 36, 80, { width: 523 });
       doc.font("regular").fontSize(10).text(`Customer: ${items[0].customerName || "Not recorded"}`, 36, doc.y + 7, { width: 523 });

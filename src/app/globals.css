@@ -299,3 +299,13 @@
 .printing-actions .add-card-button:hover{background:var(--wine);border-color:var(--wine);color:#fff}
 @media(max-width:900px){.card-detail-hero{grid-template-columns:220px minmax(0,1fr);gap:26px}.card-detail-info h1{font-size:29px}.card-detail-meta{grid-template-columns:repeat(2,1fr)}.printing-row{grid-template-columns:38px minmax(0,1fr) auto;gap:11px}.printing-row .printing-stock{display:none}.printing-row .printing-price{font-size:13px}}
 @media(max-width:620px){.card-detail-hero{grid-template-columns:1fr;gap:22px}.card-detail-image{max-width:250px}.card-detail-info h1{font-size:26px}.card-detail-meta{grid-template-columns:repeat(2,1fr);gap:13px}.printing-row{grid-template-columns:34px minmax(0,1fr) auto;gap:10px;padding:10px 12px}.printing-thumb{width:34px;height:48px}.printing-actions .save-card{width:27px;height:27px}.printing-actions .add-card-button{min-width:52px;padding:7px 9px}}
+
+/* Saved store palette is supplied server-side: no theme flash or arbitrary CSS. */
+.button-primary,.button-primary:hover,.hero-button,.hero-button:hover,.newsletter-input button,.header-icon i,.pos-nav-link{color:var(--accent-text,#111)}
+.hero-button:hover{background:var(--wine-dark)}.foil-tag{background:linear-gradient(135deg,var(--gold),var(--wine),var(--gold))}
+.brand .custom-brand-name{display:block;max-width:240px;white-space:normal;overflow-wrap:anywhere;font-size:15px;line-height:1.4;letter-spacing:.5px}
+.store-business-details{display:flex;flex-direction:column;gap:7px;margin:18px 0;font-size:11px;line-height:1.8;font-style:normal;white-space:pre-line;overflow-wrap:anywhere}.store-business-details a{text-decoration:underline;text-underline-offset:3px}
+html:not([data-store-theme=classic]) .eyebrow,html:not([data-store-theme=classic]) .section-link:hover{color:var(--theme-muted-accent)}
+html:not([data-store-theme=classic]) .hero-eyebrow,html:not([data-store-theme=classic]) .newsletter-copy .eyebrow,html:not([data-store-theme=classic]) .admin-sidebar .eyebrow{color:var(--gold)}
+html:not([data-store-theme=classic]) .collection-filter.selected,html:not([data-store-theme=classic]) .view-toggle .selected{background:var(--rose)}
+@media(max-width:760px){.brand .custom-brand-name{max-width:150px;font-size:12px}.announcement-message{overflow-wrap:anywhere}}

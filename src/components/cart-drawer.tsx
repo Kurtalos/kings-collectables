@@ -1,17 +1,21 @@
 "use client";
+import { useStoreSettings } from "./store-settings-provider";
+import { shippingCost } from "@/lib/store-settings";
 import Link from "next/link";
 import { ArrowRight, ShoppingBag, Truck, Minus, Plus, Trash2, ShieldCheck, Check, Crown } from "lucide-react";
 import { Modal, EmptyState } from "./ui";
-import { money, FREE_SHIPPING_THRESHOLD } from "@/lib/types";
+import { money } from "@/lib/types";
 import type { CartLine, Customer } from "@/lib/types";
 
 export function CartDrawer({ cart, customer, onClose, onAdjust, onRemove }: { cart: CartLine[]; customer?: Customer | null; onClose: () => void; onAdjust: (id: string, delta: number) => void; onRemove: (id: string) => void }) {
+  const settings = useStoreSettings();
+  const FREE_SHIPPING_THRESHOLD = settings.freeShippingThreshold;
   const subtotal = cart.reduce((sum, line) => sum + line.quantity * line.product.price, 0);
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : 895;
+  const shipping = shippingCost(subtotal, settings);
   return <Modal title={`Your cart (${cart.reduce((sum, line) => sum + line.quantity, 0)})`} onClose={onClose} drawer>
     {!cart.length ? <EmptyState icon={<ShoppingBag size={35}/>} title="Your next great deck is waiting" description="Add a few favourites and make a little room in your collection."><Link href="/cards" className="button button-primary" onClick={onClose}>Explore singles <ArrowRight size={16}/></Link></EmptyState>
       : <div className="cart-content">
-        <div className="shipping-progress"><div><Truck size={17}/><span>{subtotal >= FREE_SHIPPING_THRESHOLD ? "You've unlocked free tracked shipping!" : <>{money(FREE_SHIPPING_THRESHOLD - subtotal)} away from free shipping</>}</span>{subtotal >= FREE_SHIPPING_THRESHOLD && <Check size={15}/>}</div><span className="progress-track"><i style={{ width: `${Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100)}%` }}/></span></div>
+        {(FREE_SHIPPING_THRESHOLD !== null || shipping === 0) && <div className="shipping-progress"><div><Truck size={17}/><span>{shipping === 0 ? "You've unlocked free tracked shipping!" : <>{money((FREE_SHIPPING_THRESHOLD ?? 0) - subtotal)} away from free shipping</>}</span>{shipping === 0 && <Check size={15}/>}</div><span className="progress-track"><i style={{ width: `${Math.min(100, (FREE_SHIPPING_THRESHOLD ? subtotal / FREE_SHIPPING_THRESHOLD : 1) * 100)}%` }}/></span></div>}
         <div className="cart-lines">{cart.map(line => <div className="cart-line" key={line.product.id}>
           <img src={line.product.imageUrl} alt={line.product.name}/>
           <div className="cart-line-info"><strong>{line.product.name}</strong><span>{line.product.setName}</span><small>{line.product.condition} · {line.product.finish}</small>

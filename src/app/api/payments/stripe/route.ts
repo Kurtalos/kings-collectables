@@ -1,3 +1,4 @@
+import { readStoreSettings } from "@/lib/store-settings-server";
 import { db } from "@/db";
 import { orders, payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
       amount: order.total,
       currency: "aud",
       receipt_email: customer.email,
-      description: `Kings Collectables order ${order.orderNumber}`,
+      description: `${(await readStoreSettings()).storeName} order ${order.orderNumber}`,
       metadata: { orderId: order.id, orderNumber: order.orderNumber, customerEmail: customer.email },
       automatic_payment_methods: { enabled: true },
       statement_descriptor: "KINGSCOLLECTABLES",

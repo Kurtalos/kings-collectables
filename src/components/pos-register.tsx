@@ -1,4 +1,6 @@
 "use client";
+import { useStoreSettings } from "./store-settings-provider";
+import { StoreBusinessDetails } from "./store-business-details";
 import Link from "next/link";
 import { TradePrintingPicker } from "./trade-printing-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -21,6 +23,7 @@ const METHOD_ICON: Record<string, typeof Banknote> = { Cash: Banknote, Card: Cre
 const QUICK_CASH = [2000, 5000, 10000, 20000];
 
 export function PosRegister({ products }: { products: Card[] }) {
+  const settings = useStoreSettings();
   const saleRequestKey = useRef<string | null>(null);
   const [view, setView] = useState<"register" | "takings" | "customers">("register");
   const [stock, setStock] = useState<Map<string, number>>(() => new Map(products.map(card => [card.id, card.quantity])));
@@ -309,7 +312,7 @@ export function PosRegister({ products }: { products: Card[] }) {
 
     {receipt && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setReceipt(null); }}><div className="modal-panel pos-receipt-panel" role="dialog" aria-modal="true" aria-label={`Receipt ${receipt.orderNumber}`}><div className="modal-heading pos-no-print"><h2>Sale complete</h2><button className="icon-button" aria-label="Close receipt" onClick={() => setReceipt(null)}><X size={21}/></button></div>
       <div className="pos-receipt" id="pos-receipt">
-        <div className="pos-receipt-brand"><Crown size={20}/><strong>KINGS COLLECTABLES</strong><span>Independent Australian card store</span></div>
+        <div className="pos-receipt-brand"><Crown size={20}/><strong>{settings.storeName.toUpperCase()}</strong><span>Independent Australian card store</span><StoreBusinessDetails/></div>
         <div className="pos-receipt-meta"><div><span>Receipt</span><strong>{receipt.orderNumber}</strong></div><div><span>Date</span><strong>{new Date(receipt.createdAt).toLocaleString("en-AU")}</strong></div><div><span>Customer</span><strong>{receipt.customerName}</strong></div></div>
         <table className="pos-receipt-table"><tbody>{receipt.items.map(item => <tr key={item.id}><td>{item.quantity} × {item.cardName}<small>{item.variant}</small></td><td>{money(item.unitPrice * item.quantity)}</td></tr>)}</tbody></table>
         <div className="pos-receipt-totals">{receipt.discount > 0 && <div><span>Discount</span><strong>−{money(receipt.discount)}</strong></div>}<div><span>Subtotal</span><strong>{money(receipt.subtotal)}</strong></div><div className="pos-receipt-grand"><span>Total</span><strong>{money(receipt.total)} AUD</strong></div>

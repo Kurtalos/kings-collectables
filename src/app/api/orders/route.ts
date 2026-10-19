@@ -1,3 +1,5 @@
+import { readStoreSettings } from "@/lib/store-settings-server";
+import { shippingCost } from "@/lib/store-settings";
 import { dispatchRestockEvents } from "@/lib/restock";
 import { consumeItem, restoreItem } from "@/lib/inventory";
 import { db } from "@/db";
@@ -70,7 +72,8 @@ export async function POST(request: Request) {
       let subtotal = 0;
       for (const card of stock) { const quantity = requested.get(card.id)!; if (card.quantity < quantity) throw new Error(`Only ${card.quantity} copies of ${card.name} are currently available.`); subtotal += card.price * quantity; }
       if (!Number.isSafeInteger(subtotal) || subtotal > 100000000) throw new Error("This order is too large for online reservation. Please contact the store.");
-      const shipping = subtotal >= 10000 ? 0 : 895;
+      const shipping = shippingCost(subtotal, await readStoreSettings(tx));
+      if (body.expectedShipping !== undefined && body.expectedShipping !== shipping) throw new Error("Shipping rates have changed. Refresh checkout to review the current total before placing your order.");
       const orderNumber = `KC-${Date.now().toString(36).toUpperCase()}-${randomBytes(4).toString("hex").toUpperCase()}`;
       const [saved] = await tx.insert(orders).values({ orderNumber, customerId: shopper?.id || null, customerName: shopper?.name || customerName, email: shopper?.email || email, shippingAddress, addressId, recipientPhone, subtotal, shipping, total: subtotal + shipping }).returning();
       const savedItems = await tx.insert(orderItems).values(stock.map(card => ({ orderId: saved.id, productId: card.id, cardName: card.name, variant: `${card.setCode.toUpperCase()} · ${card.condition} · ${card.finish}`, quantity: requested.get(card.id)!, unitPrice: card.price }))).returning();

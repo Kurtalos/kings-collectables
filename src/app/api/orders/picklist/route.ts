@@ -1,3 +1,4 @@
+import { readStoreSettings } from "@/lib/store-settings-server";
 import { db } from "@/db";
 import { orders, orderItems, products } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
         { status: 409 },
       );
     const csv = new URL(request.url).searchParams.get("format") === "csv";
-    const body = csv ? picklistCSV(result.lines) : new Uint8Array(await picklistPDF(result.lines));
+    const body = csv ? picklistCSV(result.lines) : new Uint8Array(await picklistPDF(result.lines, (await readStoreSettings()).storeName));
     return new Response(body, {
       headers: {
         "Content-Type": csv ? "text/csv; charset=utf-8" : "application/pdf",

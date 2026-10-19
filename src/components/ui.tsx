@@ -1,10 +1,16 @@
 "use client";
+import { useStoreSettings } from "./store-settings-provider";
+import type { StoreTheme } from "@/lib/store-settings";
 import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
-import { X, ArrowUpRight } from "lucide-react";
+import { X, ArrowUpRight, TreePine, Ghost } from "lucide-react";
 
+export function ThemeMotif({ theme }: { theme: StoreTheme }) {
+  return theme === "christmas" ? <TreePine size={16} aria-hidden="true"/> : theme === "halloween" ? <Ghost size={16} aria-hidden="true"/> : null;
+}
 export function Brand({ light = false, small = false }: { light?: boolean; small?: boolean }) {
-  return <Link href="/" className={`brand ${light ? "brand-light" : ""} ${small ? "brand-small" : ""}`} aria-label="Kings Collectables home"><svg className="brand-mark" viewBox="0 0 46 46" fill="none" aria-hidden="true"><path d="M8 18 15 10l8 7 8-7 7 8-4 16H12L8 18Z" fill="currentColor"/><path d="M12 34h22v4H12z" fill={light ? "#111" : "#f5c518"}/><path d="M23 16 26.5 24h-7L23 16Z" fill={light ? "#111" : "#f5c518"}/></svg><span>KINGS<span className="brand-second">COLLECTABLES</span></span></Link>;
+  const { storeName } = useStoreSettings();
+  return <Link href="/" className={`brand ${light ? "brand-light" : ""} ${small ? "brand-small" : ""}`} aria-label={`${storeName} home`}><svg className="brand-mark" viewBox="0 0 46 46" fill="none" aria-hidden="true"><path d="M8 18 15 10l8 7 8-7 7 8-4 16H12L8 18Z" fill="currentColor"/><path d="M12 34h22v4H12z" fill={light ? "#111" : "var(--gold)"}/><path d="M23 16 26.5 24h-7L23 16Z" fill={light ? "#111" : "var(--gold)"}/></svg><span>{storeName === "Kings Collectables" ? <>KINGS<span className="brand-second">COLLECTABLES</span></> : <span className="custom-brand-name">{storeName}</span>}</span></Link>;
 }
 export function Modal({ children, title, onClose, wide = false, drawer = false }: { children: ReactNode; title: string; onClose: () => void; wide?: boolean; drawer?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
