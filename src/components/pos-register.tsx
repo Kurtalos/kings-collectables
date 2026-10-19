@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { TradePrintingPicker } from "./trade-printing-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Plus, Minus, Trash2, X, LoaderCircle, Check, Banknote, CreditCard, Wallet, Gift, ReceiptText, Printer, ArrowLeft, Users, BarChart3, RotateCcw, Crown, TriangleAlert, Percent, Package, ArrowRight, CircleDollarSign, Download } from "lucide-react";
 import { Brand, requestJSON } from "./ui";
@@ -9,9 +10,9 @@ import { downloadCSV } from "@/lib/csv";
 
 type BasketLine = { product: Card; quantity: number; unitPrice: number | null; note: string };
 type Tender = { method: string; amount: number };
-type TradeIn = { name: string; amount: number };
+type TradeIn = { receiptId?:string; productId:string; quantity:number; name: string; amount: number };
 type Report = {
-  range: { from: string; to: string }; sales: number; refunds: number; gross: number; refundedTotal: number; takings: number;
+  costBasis: number|null; range: { from: string; to: string }; sales: number; refunds: number; gross: number; refundedTotal: number; takings: number;
   discountGiven: number; cardsSold: number; creditIssued: number; creditRedeemed: number;
   byMethod: { method: string; count: number; amount: number; refunded: number }[];
   recent: PosSale[];
@@ -20,6 +21,7 @@ const METHOD_ICON: Record<string, typeof Banknote> = { Cash: Banknote, Card: Cre
 const QUICK_CASH = [2000, 5000, 10000, 20000];
 
 export function PosRegister({ products }: { products: Card[] }) {
+  const saleRequestKey = useRef<string | null>(null);
   const [view, setView] = useState<"register" | "takings" | "customers">("register");
   const [stock, setStock] = useState<Map<string, number>>(() => new Map(products.map(card => [card.id, card.quantity])));
   const [query, setQuery] = useState(""), [basket, setBasket] = useState<BasketLine[]>([]);
@@ -117,12 +119,13 @@ export function PosRegister({ products }: { products: Card[] }) {
     if (!basket.length) { notify("Add a card before completing the sale.", true); return; }
     setBusy(true); setError("");
     try {
-      const data = await requestJSON<{ sale: PosSale }>("/api/pos", {
+      const data = await requestJSON<{ sale: PosSale; stock: {id:string;quantity:number}[] }>("/api/pos", {
         method: "POST",
         body: JSON.stringify({
           action: "sale",
           lines: basket.map(line => ({ productId: line.product.id, quantity: line.quantity, ...(line.unitPrice !== null ? { unitPrice: line.unitPrice } : {}), ...(line.note.trim() ? { note: line.note.trim() } : {}) })),
           discount: discountValue ? { type: discount.type, value: discount.type === "percent" ? Number(discount.value) : discountValue } : undefined,
+          requestKey: (saleRequestKey.current ||= crypto.randomUUID()),
           tradeIns: tradeIns.filter(trade => trade.name.trim() && trade.amount > 0),
           payments: tenders.filter(tender => tender.amount > 0).map(tender => ({ method: tender.method, amount: tender.amount })),
           customerId: customer?.id || undefined,
@@ -131,8 +134,9 @@ export function PosRegister({ products }: { products: Card[] }) {
         }),
       });
       const sale = data.sale;
-      setStock(current => { const next = new Map(current); for (const line of basket) next.set(line.product.id, Math.max(0, (next.get(line.product.id) || 0) - line.quantity)); return next; });
+      setStock(current => { const next = new Map(current); for (const card of data.stock) next.set(card.id,card.quantity); return next; });
       if (sale.customer) setCustomer(sale.customer);
+      saleRequestKey.current = null;
       setReceipt(sale); setBasket([]); setTradeIns([]); setDiscount({ type: "percent", value: "" }); setNote(""); setTenders([{ method: "Cash", amount: 0 }]);
       loadReport();
     } catch (error) { const message = error instanceof Error ? error.message : "Unable to complete the sale."; setError(message); notify(message, true); }
@@ -209,7 +213,7 @@ export function PosRegister({ products }: { products: Card[] }) {
 
           <details className="pos-panel"><summary><Package size={14}/> Trade-ins {tradeIns.length > 0 && <em>{money(tradeIns.reduce((sum, trade) => sum + trade.amount, 0))}</em>}</summary>
             {!customer ? <p className="pos-panel-hint">Attach a customer first — trade-in value is stored as their store credit.</p> : <>
-              {tradeIns.map((trade, index) => <div className="pos-tradein-row" key={index}><input value={trade.name} placeholder="Card name" maxLength={160} onChange={event => setTradeIns(current => current.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} aria-label="Trade-in card name"/><label className="pos-price-override"><span>$</span><input type="number" min="0" max="10000" step="0.01" value={(trade.amount / 100).toFixed(2)} onChange={event => setTradeIns(current => current.map((item, i) => i === index ? { ...item, amount: Math.min(1000000, Math.max(0, Math.round(Number(event.target.value) * 100))) } : item))} aria-label="Trade-in value"/><button className="pos-line-remove" onClick={() => setTradeIns(current => current.filter((_, i) => i !== index))} aria-label="Remove trade-in"><X size={13}/></button></label></div>)}
+              {tradeIns.map((trade, index) => <div className="pos-tradein-row" key={index}><input value={trade.name} readOnly placeholder="Card name" maxLength={160} onChange={event => setTradeIns(current => current.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} aria-label="Trade-in card name" title={`${trade.quantity} copies received`}/><label className="pos-price-override"><span>$</span><input type="number" min="0" max="10000" step="0.01" value={(trade.amount / 100).toFixed(2)} onChange={event => setTradeIns(current => current.map((item, i) => i === index ? { ...item, amount: Math.min(1000000, Math.max(0, Math.round(Number(event.target.value) * 100))) } : item))} aria-label="Trade-in value"/><button className="pos-line-remove" onClick={() => setTradeIns(current => current.filter((_, i) => i !== index))} aria-label="Remove trade-in"><X size={13}/></button></label></div>)}
               <button className="pos-link-button" onClick={() => setShowTradeIn(true)}><Plus size={13}/> Add trade-in</button>
               <p className="pos-panel-hint">Trade-in value is added to the customer's store credit when the sale completes.</p></>}
           </details>
@@ -252,7 +256,7 @@ export function PosRegister({ products }: { products: Card[] }) {
       <div className="pos-report-head"><div><span className="eyebrow">TAKINGS</span><h1>How the counter went.</h1></div><div className="pos-report-controls"><input type="date" value={range} max={new Date().toISOString().slice(0, 10)} onChange={event => setRange(event.target.value)} aria-label="Takings date"/><button className="button button-outline" onClick={exportTakings} disabled={!report?.recent.length}><Download size={14}/> Export CSV</button></div></div>
       {reportBusy ? <div className="admin-loading"><LoaderCircle className="spin" size={24}/> Loading takings…</div> : reportError ? <p className="form-error" role="alert">{reportError}</p> : report && <>
         <div className="pos-stat-grid">
-          <div className="pos-stat"><span>Takings</span><strong>{money(report.takings)}</strong><small>{report.sales} sales · {report.refunds} refunds</small></div>
+          <div className="pos-stat"><span>Gross profit / margin (before fees)</span><strong>{report.costBasis === null ? "Unknown cost" : money(report.gross - report.costBasis)}</strong><small>{report.costBasis === null ? "Some sale costs are unknown; no invented profit" : `${report.gross ? ((report.gross-report.costBasis)/report.gross*100).toFixed(1) : 0}% margin · FIFO COGS ${money(report.costBasis)}`}</small></div><div className="pos-stat"><span>Takings</span><strong>{money(report.takings)}</strong><small>{report.sales} sales · {report.refunds} refunds</small></div>
           <div className="pos-stat"><span>Gross sales</span><strong>{money(report.gross)}</strong><small>Before refunds</small></div>
           <div className="pos-stat"><span>Refunded</span><strong>{money(report.refundedTotal)}</strong><small>Returned to customers</small></div>
           <div className="pos-stat"><span>Cards sold</span><strong>{report.cardsSold}</strong><small>Across {report.sales} sales</small></div>
@@ -292,10 +296,10 @@ export function PosRegister({ products }: { products: Card[] }) {
         <button className="button button-primary" disabled={busy}>{busy ? <LoaderCircle className="spin" size={16}/> : <Crown size={16}/>} Create profile</button></form></div></div>}
 
     {showTradeIn && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setShowTradeIn(false); }}><div className="modal-panel" role="dialog" aria-modal="true" aria-label="Add trade-in"><div className="modal-heading"><h2>Add a trade-in</h2><button className="icon-button" aria-label="Close dialog" onClick={() => setShowTradeIn(false)}><X size={21}/></button></div>
-      <form className="stack-form pos-new-customer" onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const name = String(form.get("name") || "").trim(); const amount = Math.round(Number(form.get("amount")) * 100); if (!name || !(amount > 0)) { notify("Enter a card name and a value above $0.", true); return; } setTradeIns(current => [...current, { name, amount }]); setShowTradeIn(false); }}>
-        <label>Card name<input name="name" maxLength={160} required placeholder="e.g. Sheoldred, the Apocalypse (DMU)"/></label>
-        <label>Credit value (AUD)<input name="amount" type="number" min="0.01" max="10000" step="0.01" required placeholder="0.00"/></label>
-        <p className="pos-panel-hint">The value is added to the customer's store credit when the sale completes. Trade-in stock is added to inventory separately via Import or Add card.</p>
+      <form className="stack-form pos-new-customer" onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const printing = JSON.parse(String(form.get("printing"))); const name = printing.name; const quantity = Number(form.get("quantity")); const amount = Math.round(Number(form.get("amount")) * 100); if (!name || !(amount > 0)) { notify("Enter a card name and a value above $0.", true); return; } setTradeIns(current => [...current, { name, amount, productId:printing.id, quantity, receiptId:String(form.get("receiptId") || "").trim() || undefined }]); setShowTradeIn(false); }}>
+        <TradePrintingPicker/>
+        <details><summary>Already received and credited?</summary><label>Existing trade receipt ID<input name="receiptId" placeholder="Optional: inventory receipt UUID"/></label><p>Linked receipts do not add stock or issue credit again.</p></details><label>Credit value (AUD)<input name="amount" type="number" min="0.01" max="10000" step="0.01" required placeholder="0.00"/></label>
+        <p className="pos-panel-hint">The value is added to the customer's store credit when the sale completes. The exact printing is received into inventory with its acquisition cost in the same transaction. Do not receive these cards a second time.</p>
         <button className="button button-primary">Add trade-in</button></form></div></div>}
 
     {refundTarget && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setRefundTarget(null); }}><div className="modal-panel" role="dialog" aria-modal="true" aria-label={`Refund ${refundTarget.orderNumber}`}><div className="modal-heading"><h2>Refund {refundTarget.orderNumber}</h2><button className="icon-button" aria-label="Close dialog" onClick={() => setRefundTarget(null)}><X size={21}/></button></div>

@@ -44,7 +44,7 @@ export type StoreOrder = {
   channel: string; addressId: string | null; recipientPhone: string | null; discount: number; note: string | null;
   refundedAmount: number; refundedAt: string | null; refundReason: string | null;
   subtotal: number; shipping: number; total: number; createdAt: string;
-  items: { id: string; productId: string | null; cardName: string; variant: string; quantity: number; unitPrice: number }[];
+  items: { id: string; productId: string | null; cardName: string; variant: string; quantity: number; unitPrice: number; costBasis?: number | null }[];
 };
 export type PosCustomer = { id: string; name: string; email: string; creditBalance: number };
 export type PosSale = StoreOrder & { tenders: { method: string; amount: number }[]; change?: number; tradeTotal?: number; customer?: PosCustomer | null };

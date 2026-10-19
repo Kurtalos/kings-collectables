@@ -1,5 +1,7 @@
+import { dispatchRestockEvents } from "@/lib/restock";
+import { consumeItem, restoreItem, receiveStock } from "@/lib/inventory";
 import { db } from "@/db";
-import { products, orders, orderItems, payments, customers, creditTransactions } from "@/db/schema";
+import { products, orders, orderItems, payments, customers, creditTransactions, inventoryReceipts, inventoryLots } from "@/db/schema";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { requireOwner, apiError } from "@/lib/admin-auth";
 import { readBody, isUUID, validEmail, textField } from "@/lib/validation";
@@ -37,7 +39,8 @@ export async function GET(request: Request) {
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) throw new Error("Choose a valid date range.");
     if (to.getTime() - from.getTime() > 1000 * 60 * 60 * 24 * 366) throw new Error("Please query a range of one year or less.");
 
-    const posOrders = await db.select().from(orders).where(and(eq(orders.channel, "pos"), gte(orders.createdAt, from), lte(orders.createdAt, to))).orderBy(desc(orders.createdAt)).limit(500);
+    const posOrders = await db.select().from(orders).where(and(eq(orders.channel, "pos"), gte(orders.createdAt, from), lte(orders.createdAt, to))).orderBy(desc(orders.createdAt)).limit(501);
+    if (posOrders.length > 500) throw new Error("More than 500 sales match this report. Choose a narrower date range to avoid incomplete totals.");
     const ids = posOrders.map(order => order.id);
     const tenders = ids.length ? await db.select().from(payments).where(inArray(payments.orderId, ids)) : [];
     const credits = await db.select().from(creditTransactions).where(and(gte(creditTransactions.createdAt, from), lte(creditTransactions.createdAt, to)));
@@ -55,21 +58,21 @@ export async function GET(request: Request) {
       amount: succeeded.filter(row => row.method === method).reduce((sum, row) => sum + row.amount, 0),
       refunded: Math.abs(refundedRows.filter(row => row.method === method).reduce((sum, row) => sum + row.amount, 0)),
     })).filter(row => row.count || row.refunded);
-    const recentIds = new Set(posOrders.slice(0, 60).map(order => order.id));
 
     return Response.json({
       range: { from: from.toISOString(), to: to.toISOString() },
       sales: kept.length,
       refunds: returned.length,
-      gross, refundedTotal, takings: gross - refundedTotal,
+      costBasis: items.filter(i => kept.some(o => o.id === i.orderId)).some(i => i.costBasis === null) ? null : items.filter(i => kept.some(o => o.id === i.orderId)).reduce((s,i)=>s+(i.costBasis || 0),0),
+      gross, refundedTotal, takings: gross,
       discountGiven: posOrders.reduce((sum, order) => sum + order.discount, 0),
-      cardsSold: items.filter(item => recentIds.has(item.orderId)).reduce((sum, item) => sum + item.quantity, 0),
+      cardsSold: items.filter(item => kept.some(order => order.id === item.orderId)).reduce((sum, item) => sum + item.quantity, 0),
       creditIssued: credits.filter(row => row.amount > 0).reduce((sum, row) => sum + row.amount, 0),
       creditRedeemed: Math.abs(credits.filter(row => row.amount < 0).reduce((sum, row) => sum + row.amount, 0)),
       byMethod,
       recent: posOrders.slice(0, 60).map(order => ({
         ...orderRef(order),
-        items: items.filter(item => item.orderId === order.id).map(item => ({ id: item.id, productId: item.productId, cardName: item.cardName, variant: item.variant, quantity: item.quantity, unitPrice: item.unitPrice })),
+        items: items.filter(item => item.orderId === order.id).map(item => ({ id: item.id, productId: item.productId, cardName: item.cardName, variant: item.variant, quantity: item.quantity, unitPrice: item.unitPrice, costBasis: item.costBasis })),
         tenders: succeeded.filter(row => row.orderId === order.id).map(row => ({ method: row.method, amount: row.amount })),
       })) as (StoreOrder & { tenders: { method: string; amount: number }[] })[],
     });
@@ -123,7 +126,7 @@ export async function POST(request: Request) {
 
         const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
         for (const item of items.sort((a, b) => (a.productId || "").localeCompare(b.productId || ""))) {
-          if (item.productId) await tx.update(products).set({ quantity: sql`${products.quantity} + ${item.quantity}` }).where(eq(products.id, item.productId));
+          await restoreItem(tx, item);
         }
 
         const tenders = await tx.select().from(payments).where(and(eq(payments.orderId, order.id), eq(payments.status, "succeeded")));
@@ -141,10 +144,13 @@ export async function POST(request: Request) {
         const [updated] = await tx.update(orders).set({ status: "Refunded", refundedAmount: order.total, refundedAt: sql`now()`, refundReason: reason }).where(eq(orders.id, order.id)).returning();
         return updated;
       });
+      await dispatchRestockEvents();
       return Response.json({ order: orderRef(refunded) });
     }
 
     if (action === "sale") {
+      if (!isUUID(body.requestKey)) throw new Error("Refresh the register before completing this sale.");
+      const requestKey = String(body.requestKey);
       const lines = assertPosLines(body.lines);
       const discount = assertDiscount(body.discount);
       const tradeIns = assertTradeIns(body.tradeIns);
@@ -163,8 +169,11 @@ export async function POST(request: Request) {
       }
 
       const sale = await db.transaction(async tx => {
-        const stock = await tx.select().from(products).where(inArray(products.id, [...wanted.keys()])).orderBy(asc(products.id)).for("update");
-        if (stock.length !== wanted.size) throw new Error("One or more cards are no longer in the catalogue. Refresh the register.");
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${requestKey}, 0))`);
+        const [prior] = await tx.select().from(orders).where(eq(orders.idempotencyKey, requestKey));
+        if (prior) throw new Error(`Sale already saved as ${prior.orderNumber}. Check recent sales; no stock or credit was applied twice.`);
+        const stock = await tx.select().from(products).where(inArray(products.id, [...new Set([...wanted.keys(), ...tradeIns.map(t => t.productId)])])).orderBy(asc(products.id)).for("update");
+        if (stock.length !== new Set([...wanted.keys(), ...tradeIns.map(t => t.productId)]).size) throw new Error("One or more cards are no longer in the catalogue. Refresh the register.");
 
         let customer = null as (typeof customers.$inferSelect) | null;
         if (customerEmail) {
@@ -177,7 +186,7 @@ export async function POST(request: Request) {
           customer = found;
         }
 
-        const priced = stock.map(card => {
+        const priced = stock.filter(card => wanted.has(card.id)).map(card => {
           const entry = wanted.get(card.id)!;
           const unitPrice = entry.unitPrice === undefined ? card.price : entry.unitPrice;
           if (card.quantity < entry.quantity) throw new Error(`Only ${card.quantity} copies of ${card.name} are available.`);
@@ -212,29 +221,40 @@ export async function POST(request: Request) {
         const orderNumber = `POS-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
         const methodSummary = [...new Set(applied.map(tender => tender.method))].join(" + ");
         const [order] = await tx.insert(orders).values({
-          orderNumber, channel: "pos", customerId: customer?.id || null,
+          orderNumber, idempotencyKey: requestKey, channel: "pos", customerId: customer?.id || null,
           customerName: customer?.name || customerName, email: customer?.email || customerEmail || "walk-in@kingscollectables.local",
           shippingAddress: "Collected in store", status: "Paid", paidAt: sql`now()`,
           paymentMethod: methodSummary, paymentReceipt: `pos-${orderNumber}`,
           subtotal, shipping: 0, discount: discountValue, note, total,
         }).returning();
 
-        await tx.insert(orderItems).values(priced.map(row => ({
+        const savedItems = await tx.insert(orderItems).values(priced.map(row => ({
           orderId: order.id, productId: row.card.id, cardName: row.card.name,
           variant: [row.card.setCode.toUpperCase(), row.card.condition, row.card.finish, row.note].filter(Boolean).join(" · "),
           quantity: row.quantity, unitPrice: row.unitPrice,
-        })));
-        for (const row of priced) await tx.update(products).set({ quantity: sql`${products.quantity} - ${row.quantity}` }).where(eq(products.id, row.card.id));
+        }))).returning();
+        for (const item of savedItems) await consumeItem(tx, item);
         await tx.insert(payments).values(applied.map(tender => ({ orderId: order.id, method: tender.method, amount: tender.amount, status: "succeeded", providerReference: `${orderNumber}-${tender.method.toLowerCase().replace(/\s+/g, "-")}` })));
 
-        const tradeTotal = tradeIns.reduce((sum, trade) => sum + trade.amount, 0);
+        const newTrades=tradeIns.filter(t=>!t.receiptId);
+        if (tradeIns.length && !customer) throw new Error("Attach a customer before receiving trade-ins.");
+        for (const trade of tradeIns.filter(t=>t.receiptId)) {
+          const [receipt]=await tx.select().from(inventoryReceipts).where(eq(inventoryReceipts.id,trade.receiptId!));
+          const received=await tx.select().from(inventoryLots).where(and(eq(inventoryLots.receiptId,trade.receiptId!),eq(inventoryLots.productId,trade.productId)));
+          if(!receipt || receipt.customerId!==customer!.id || received.reduce((s,l)=>s+l.acquiredQuantity,0)<trade.quantity || !received.every(l=>l.acquisitionType==='Trade-in')) throw new Error("Existing trade receipt does not match this customer and printing.");
+        }
+        const tradeTotal = newTrades.reduce((sum, trade) => sum + trade.amount, 0);
+        if(newTrades.length) {
+          const receipt=await receiveStock(tx,newTrades.map(t=>({productId:t.productId,quantity:t.quantity,unitCost:t.amount/t.quantity,acquisitionType:'Trade-in',supplier:customer!.name,reference:orderNumber,note:t.note})),`pos-trade-${order.id}`);
+          await tx.update(inventoryReceipts).set({customerId:customer!.id,creditAmount:tradeTotal}).where(eq(inventoryReceipts.id,receipt.id));
+        }
         let creditBalance = customer?.creditBalance ?? 0;
         if (customer && (tradeTotal > 0 || creditTender > 0)) {
           if (creditTender > 0) {
             creditBalance -= creditTender;
             await tx.insert(creditTransactions).values({ customerId: customer.id, orderId: order.id, amount: -creditTender, reason: "Credit redeemed", note: `Used on ${orderNumber}` });
           }
-          for (const trade of tradeIns) {
+          for (const trade of newTrades) {
             creditBalance += trade.amount;
             await tx.insert(creditTransactions).values({ customerId: customer.id, orderId: order.id, amount: trade.amount, reason: "Trade-in", note: [trade.name, trade.note].filter(Boolean).join(" — ").slice(0, 200) });
           }
@@ -246,11 +266,14 @@ export async function POST(request: Request) {
         return { order, applied, change, creditBalance, customer, tradeTotal, discountValue, lineTotal, total };
       });
 
+      await dispatchRestockEvents();
       const items = await db.select().from(orderItems).where(eq(orderItems.orderId, sale.order.id));
+      const stockSnapshot = await db.select({id:products.id,quantity:products.quantity}).from(products).where(inArray(products.id,[...new Set([...lines.map(l=>l.productId),...tradeIns.map(t=>t.productId)])]));
       return Response.json({
+        stock: stockSnapshot,
         sale: {
           ...orderRef(sale.order),
-          items: items.map(item => ({ id: item.id, productId: item.productId, cardName: item.cardName, variant: item.variant, quantity: item.quantity, unitPrice: item.unitPrice })),
+          items: items.map(item => ({ id: item.id, productId: item.productId, cardName: item.cardName, variant: item.variant, quantity: item.quantity, unitPrice: item.unitPrice, costBasis: item.costBasis })),
           tenders: sale.applied, change: sale.change, tradeTotal: sale.tradeTotal,
           customer: sale.customer ? { id: sale.customer.id, name: sale.customer.name, email: sale.customer.email, creditBalance: sale.creditBalance } : null,
         },

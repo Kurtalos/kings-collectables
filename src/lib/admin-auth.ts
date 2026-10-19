@@ -10,7 +10,7 @@ export function validPassword(password: string) {
   return timingSafeEqual(createHash("sha256").update(password).digest(), createHash("sha256").update(actual).digest());
 }
 export async function hasOwnerAccess() {
-  if (!ownerProtectionEnabled()) return true;
+  if (!ownerProtectionEnabled()) return false;
   const token = (await cookies()).get(cookieName)?.value;
   if (!token) return false;
   const [expiry, supplied] = token.split(".");

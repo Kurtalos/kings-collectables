@@ -6,7 +6,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "inventory:audit": "tsx scripts/inventory-db.ts",
+    "inventory:migrate": "tsx scripts/inventory-db.ts --migrate",
+    "test:inventory": "tsx --test scripts/inventory-unit.test.ts",
+    "test:inventory:db": "tsx scripts/inventory-db.test.ts",
+    "test:inventory:browser": "node scripts/inventory-browser.mjs",
+    "test:inventory:database": "tsx scripts/inventory-test-db.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",
@@ -23,12 +29,14 @@
     "tsx": "^4.23.15"
   },
   "devDependencies": {
+    "@sparticuz/chromium": "^153.0.0",
     "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
     "@types/pg": "8.18.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
+    "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "9.39.4",
     "eslint-config-next": "^16.4.0",
     "postcss": "8.5.8",
