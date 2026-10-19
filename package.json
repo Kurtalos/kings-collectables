@@ -18,11 +18,16 @@
     "test:store-settings": "tsx --test scripts/store-settings.test.ts",
     "test:store-settings:browser": "tsx scripts/store-settings-browser.test.ts",
     "test:carousel": "tsx --test scripts/homepage-carousel.test.ts",
-    "test:carousel:browser": "tsx scripts/homepage-carousel-browser.test.ts"
+    "test:carousel:browser": "tsx scripts/homepage-carousel-browser.test.ts",
+    "test:pages": "tsx --test scripts/pages.test.ts",
+    "test:pages:browser": "tsx scripts/pages-browser.test.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",
     "@stripe/stripe-js": "^10.0.0",
+    "@tiptap/extension-link": "^3.32.0",
+    "@tiptap/react": "^3.32.0",
+    "@tiptap/starter-kit": "^3.32.0",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "lucide-react": "^1.52.0",
