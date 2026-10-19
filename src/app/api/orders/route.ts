@@ -1,6 +1,8 @@
+import { dispatchRestockEvents } from "@/lib/restock";
+import { consumeItem, restoreItem } from "@/lib/inventory";
 import { db } from "@/db";
 import { products, orders, orderItems, addresses } from "@/db/schema";
-import { and, eq, inArray, sql, asc } from "drizzle-orm";
+import { and, eq, inArray, asc } from "drizzle-orm";
 import { validateAddress, composeAddress, MAX_ADDRESSES } from "@/lib/address";
 import { randomBytes } from "node:crypto";
 import { getOrders, ensureSeeded } from "@/lib/catalog";
@@ -18,7 +20,7 @@ export async function GET(request: Request) {
       if (!validEmail(email) || orderNumber.length > 50) throw new Error("Enter a valid email and order number.");
       return Response.json({ orders: await getOrders({ email, orderNumber }) });
     }
-    await requireOwner(request); return Response.json({ orders: await getOrders() });
+    await requireOwner(request); return Response.json({ orders: await getOrders(undefined, true) });
   } catch (error) { return apiError(error); }
 }
 export async function POST(request: Request) {
@@ -71,8 +73,8 @@ export async function POST(request: Request) {
       const shipping = subtotal >= 10000 ? 0 : 895;
       const orderNumber = `KC-${Date.now().toString(36).toUpperCase()}-${randomBytes(4).toString("hex").toUpperCase()}`;
       const [saved] = await tx.insert(orders).values({ orderNumber, customerId: shopper?.id || null, customerName: shopper?.name || customerName, email: shopper?.email || email, shippingAddress, addressId, recipientPhone, subtotal, shipping, total: subtotal + shipping }).returning();
-      for (const card of stock) await tx.update(products).set({ quantity: sql`${products.quantity} - ${requested.get(card.id)!}` }).where(eq(products.id, card.id));
-      await tx.insert(orderItems).values(stock.map(card => ({ orderId: saved.id, productId: card.id, cardName: card.name, variant: `${card.setCode.toUpperCase()} · ${card.condition} · ${card.finish}`, quantity: requested.get(card.id)!, unitPrice: card.price })));
+      const savedItems = await tx.insert(orderItems).values(stock.map(card => ({ orderId: saved.id, productId: card.id, cardName: card.name, variant: `${card.setCode.toUpperCase()} · ${card.condition} · ${card.finish}`, quantity: requested.get(card.id)!, unitPrice: card.price }))).returning();
+      for (const item of savedItems) await consumeItem(tx, item);
       return saved;
     });
     return Response.json({ order: { id: order.id, orderNumber: order.orderNumber, total: order.total, status: order.status, addressId } }, { status: 201 });
@@ -92,11 +94,12 @@ export async function PATCH(request: Request) {
       if (order.status === "Shipped" && body.status === "Cancelled") throw new Error("A shipped order cannot be cancelled here. Arrange a return with the customer first.");
       if (body.status === "Cancelled" && order.status !== "Cancelled" && order.channel !== "pos") {
         const lines = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-        for (const line of lines.sort((a, b) => (a.productId || "").localeCompare(b.productId || ""))) if (line.productId) await tx.update(products).set({ quantity: sql`${products.quantity} + ${line.quantity}` }).where(eq(products.id, line.productId));
+        for (const line of lines.sort((a, b) => (a.productId || "").localeCompare(b.productId || ""))) await restoreItem(tx, line);
       }
       if (body.status === "Cancelled" && order.channel === "pos") throw new Error("Register sales are refunded at the register, not cancelled here.");
       await tx.update(orders).set({ status: String(body.status) }).where(eq(orders.id, order.id));
     });
+    await dispatchRestockEvents();
     return Response.json({ ok: true });
   } catch (error) { return apiError(error); }
 }

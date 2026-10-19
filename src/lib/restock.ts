@@ -1,50 +1,47 @@
 import { db } from "@/db";
-import { watchlists, customers, products } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  inventoryRestockEvents as events,
+  watchlists,
+  wishlists,
+} from "@/db/schema";
+import { eq, isNull, asc } from "drizzle-orm";
 
-/**
- * Notify watchers when a product comes back in stock.
- * Call this whenever a product's quantity goes from 0 to >0.
+/** Durable, transactionally claimed delivery outbox. The pre-existing sender was a
+ * console stub, not email. Keep that behaviour without logging customer PII.
+ * A future email provider should accept event.id as its delivery idempotency key.
  */
-export async function notifyRestock(productId: string, newQuantity: number) {
-  const watchers = await db
-    .select({
-      id: watchlists.customerId,
-      name: customers.name,
-      email: customers.email,
-      lastSeenQuantity: watchlists.lastSeenQuantity,
-    })
-    .from(watchlists)
-    .innerJoin(customers, eq(customers.id, watchlists.customerId))
-    .where(eq(watchlists.productId, productId));
-
-  if (watchers.length === 0) return;
-
-  // In a real implementation, you'd send emails here.
-  // For now, we'll log to console and could extend to email/SMS later.
-  console.log(
-    `[Restock Notification] Product ${productId} back in stock (qty: ${newQuantity}). Notifying ${watchers.length} watcher(s):`,
-    watchers.map(w => ({ email: w.email, name: w.name })),
-  );
-
-  // Update lastSeenQuantity for all watchers so they don't get notified again
-  // until stock changes again
-  await db
-    .update(watchlists)
-    .set({ lastSeenQuantity: newQuantity })
-    .where(eq(watchlists.productId, productId));
-}
-
-/**
- * Check if a product came back in stock and notify watchers.
- * Call this after updating product inventory.
- */
-export async function checkAndNotifyRestock(
-  productId: string,
-  oldQuantity: number,
-  newQuantity: number,
-) {
-  if (oldQuantity === 0 && newQuantity > 0) {
-    await notifyRestock(productId, newQuantity);
+export async function dispatchRestockEvents() {
+  try {
+    await db.transaction(async (tx) => {
+      const pending = await tx
+        .select()
+        .from(events)
+        .where(isNull(events.processedAt))
+        .orderBy(asc(events.createdAt))
+        .limit(100)
+        .for("update", { skipLocked: true });
+      for (const event of pending) {
+        const watched = await tx
+          .select({ id: watchlists.customerId })
+          .from(watchlists)
+          .where(eq(watchlists.productId, event.productId));
+        const wished = await tx
+          .select({ id: wishlists.customerId })
+          .from(wishlists)
+          .where(eq(wishlists.productId, event.productId));
+        const recipients = new Set([...watched, ...wished].map((w) => w.id));
+        console.info(
+          `[Restock Notification] event=${event.id} product=${event.productId} quantity=${event.quantity} recipients=${recipients.size}; email delivery is not configured`,
+        );
+        await tx
+          .update(events)
+          .set({ processedAt: new Date() })
+          .where(eq(events.id, event.id));
+      }
+    });
+  } catch {
+    console.error(
+      "Restock outbox processing deferred; stock was saved. Pending events are retained for retry.",
+    );
   }
 }

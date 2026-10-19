@@ -20,6 +20,7 @@ export const products = pgTable("products", {
   priceMode: text("price_mode").notNull().default("manual"),
   usdPrice: integer("usd_price"),
   priceUpdatedAt: timestamp("price_updated_at", { withTimezone: true }),
+  totalCost: integer("total_cost"), // Legacy audit only; valuation uses remaining lots.
   quantity: integer("quantity").notNull().default(0),
   featured: boolean("featured").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -87,6 +88,7 @@ export const addresses = pgTable("addresses", {
 export const orders = pgTable("orders", {
   id: uuid("id").defaultRandom().primaryKey(),
   orderNumber: text("order_number").notNull().unique(),
+  idempotencyKey: text("idempotency_key").unique(),
   customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
   customerName: text("customer_name").notNull(),
   email: text("email").notNull(),
@@ -174,6 +176,8 @@ export const orderItems = pgTable("order_items", {
   variant: text("variant").notNull(),
   quantity: integer("quantity").notNull(),
   unitPrice: integer("unit_price").notNull(),
+  legacyCostBasis: integer("legacy_cost_basis"),
+  costBasis: integer("cost_basis"), // Total FIFO COGS; null if any allocated cost is unknown.
 });
 
 export const newsletter = pgTable("newsletter", {
@@ -193,4 +197,39 @@ export const inquiries = pgTable("inquiries", {
   message: text("message").notNull(),
   read: boolean("read").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Nullable costs distinguish unknown provenance from a known free acquisition.
+export const inventoryReceipts = pgTable("inventory_receipts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  customerId: uuid("customer_id").references(() => customers.id),
+  creditAmount: integer("credit_amount").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const inventoryLots = pgTable("inventory_lots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  receiptId: uuid("receipt_id").references(() => inventoryReceipts.id),
+  productId: uuid("product_id").notNull().references(() => products.id),
+  acquiredQuantity: integer("acquired_quantity").notNull(),
+  remainingQuantity: integer("remaining_quantity").notNull(),
+  unitCost: integer("unit_cost"),
+  acquisitionType: text("acquisition_type").notNull(),
+  acquiredAt: timestamp("acquired_at", { withTimezone: true }).notNull().defaultNow(),
+  supplier: text("supplier"), reference: text("reference"), note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const inventoryAllocations = pgTable("inventory_allocations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderItemId: uuid("order_item_id").notNull().references(() => orderItems.id),
+  lotId: uuid("lot_id").notNull().references(() => inventoryLots.id),
+  quantity: integer("quantity").notNull(), unitCost: integer("unit_cost"),
+  restoredAt: timestamp("restored_at", { withTimezone: true }),
+}, t => [uniqueIndex("inventory_allocation_line_lot").on(t.orderItemId, t.lotId)]);
+export const inventoryRestockEvents = pgTable("inventory_restock_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  productId: uuid("product_id").notNull().references(() => products.id),
+  quantity: integer("quantity").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
 });

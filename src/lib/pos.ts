@@ -6,7 +6,7 @@ export const MAX_LINE_PRICE = 1000000;
 export const MAX_DISCOUNT_PERCENT = 100;
 
 export type PosLineInput = { productId: string; quantity: number; unitPrice?: number; note?: string };
-export type PosTradeIn = { name: string; amount: number; note?: string };
+export type PosTradeIn = { receiptId?:string; productId: string; quantity: number; name: string; amount: number; note?: string };
 export type PosPaymentInput = { method: string; amount: number };
 
 export function isPosMethod(value: unknown): value is PosMethod {
@@ -44,7 +44,11 @@ export function assertTradeIns(value: unknown): PosTradeIn[] {
     const trade = entry as Record<string, unknown>;
     if (typeof trade.name !== "string" || !trade.name.trim() || trade.name.trim().length > 160) throw new Error("Each trade-in needs a card name.");
     if (!Number.isInteger(trade.amount) || Number(trade.amount) < 0 || Number(trade.amount) > MAX_LINE_PRICE) throw new Error("Trade-in values must be between $0.00 and $10,000.");
-    return { name: trade.name.trim(), amount: Number(trade.amount), note: typeof trade.note === "string" ? trade.note.slice(0, 200) : undefined };
+    if (typeof trade.productId !== "string" || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(trade.productId)) throw new Error("Select a catalogue printing for each trade-in using Receive stock.");
+    if (!Number.isInteger(trade.quantity) || Number(trade.quantity)<1 || Number(trade.quantity)>999) throw new Error("Enter a valid trade-in quantity.");
+    if (Number(trade.amount) % Number(trade.quantity) !== 0) throw new Error("Trade-in total must allocate to whole cents per copy; split the trade into separate lines.");
+    if (trade.receiptId && (typeof trade.receiptId !== "string" || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(trade.receiptId))) throw new Error("Invalid existing trade receipt ID.");
+    return { receiptId:trade.receiptId as string | undefined, productId:trade.productId, quantity:Number(trade.quantity), name: trade.name.trim(), amount: Number(trade.amount), note: typeof trade.note === "string" ? trade.note.slice(0, 200) : undefined };
   });
 }
 export function assertPayments(value: unknown): PosPaymentInput[] {

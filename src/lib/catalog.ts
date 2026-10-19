@@ -5,6 +5,8 @@ import seedCards from "@/data/cards.json";
 import { scryfallRequest, type ScryfallCard } from "./scryfall";
 import type { Card, Collection, StoreOrder, ImportLog } from "./types";
 
+// Strip owner-only fields at the server serialization boundary, including RSC payloads.
+function publicCard<T>(card:T): T { const safe={...card}; delete (safe as {totalCost?:unknown}).totalCost; return safe; }
 export async function ensureSeeded() {
   const marker = await db.select().from(storeMeta).where(eq(storeMeta.key, "catalogue-v1")).limit(1);
   if (marker.length) return;
@@ -22,7 +24,7 @@ export async function ensureSeeded() {
     const allGroups = savedGroups.length === groups.length ? savedGroups : await tx.select().from(categories);
     for (const item of seedCards) {
       const { categories: names, ...card } = item;
-      const [saved] = await tx.insert(products).values(card).onConflictDoNothing().returning();
+      const [saved] = await tx.insert(products).values({...card, quantity:0}).onConflictDoNothing().returning();
       if (saved) {
         const links = allGroups.filter(group => names.includes(group.name)).map(group => ({ productId: saved.id, categoryId: group.id }));
         if (links.length) await tx.insert(productCategories).values(links).onConflictDoNothing();
@@ -137,7 +139,7 @@ export async function getCatalog(options?: CatalogFilterOptions): Promise<{ prod
     }
 
     const cards: Card[] = foundRows.map(card => ({
-      ...card,
+      ...publicCard(card),
       priceMode: card.priceMode === "auto" ? ("auto" as const) : ("manual" as const),
       createdAt: card.createdAt instanceof Date ? card.createdAt.toISOString() : String(card.createdAt),
       priceUpdatedAt: card.priceUpdatedAt ? (card.priceUpdatedAt instanceof Date ? card.priceUpdatedAt.toISOString() : String(card.priceUpdatedAt)) : null,
@@ -167,7 +169,7 @@ export async function getCatalog(options?: CatalogFilterOptions): Promise<{ prod
     `);
 
     const cards: Card[] = ((res.rows || []) as any[]).map(card => ({
-      ...card,
+      ...publicCard(card),
       priceMode: card.priceMode === "auto" ? ("auto" as const) : ("manual" as const),
       createdAt: card.createdAt instanceof Date ? card.createdAt.toISOString() : String(card.createdAt),
       priceUpdatedAt: card.priceUpdatedAt ? (card.priceUpdatedAt instanceof Date ? card.priceUpdatedAt.toISOString() : String(card.priceUpdatedAt)) : null,
@@ -185,7 +187,7 @@ export async function getCatalog(options?: CatalogFilterOptions): Promise<{ prod
       if (categoryProductIds.length > 0) {
         const matchingCards = await db.select().from(products).where(inArray(products.id, categoryProductIds)).limit(limit);
         const cards: Card[] = matchingCards.map(card => ({
-          ...card,
+          ...publicCard(card),
           priceMode: card.priceMode === "auto" ? ("auto" as const) : ("manual" as const),
           createdAt: card.createdAt.toISOString(),
           priceUpdatedAt: card.priceUpdatedAt ? card.priceUpdatedAt.toISOString() : null,
@@ -215,7 +217,7 @@ export async function getCatalog(options?: CatalogFilterOptions): Promise<{ prod
   `);
 
   const cards: Card[] = ((res.rows || []) as any[]).map(card => ({
-    ...card,
+    ...publicCard(card),
     priceMode: card.priceMode === "auto" ? ("auto" as const) : ("manual" as const),
     createdAt: card.createdAt instanceof Date ? card.createdAt.toISOString() : String(card.createdAt),
     priceUpdatedAt: card.priceUpdatedAt ? (card.priceUpdatedAt instanceof Date ? card.priceUpdatedAt.toISOString() : String(card.priceUpdatedAt)) : null,
@@ -236,7 +238,7 @@ export async function getProductsByIds(ids: string[]): Promise<Card[]> {
   const categoriesByProduct = new Map<string, string[]>();
   for (const link of links) categoriesByProduct.set(link.productId, [...(categoriesByProduct.get(link.productId) || []), link.categoryId]);
   const byId = new Map(cards.map(card => [card.id, {
-    ...card,
+    ...publicCard(card),
     priceMode: card.priceMode === "auto" ? "auto" as const : "manual" as const,
     createdAt: card.createdAt.toISOString(),
     priceUpdatedAt: card.priceUpdatedAt?.toISOString() ?? null,
@@ -263,7 +265,7 @@ export async function getCardPrintings(scryfallId: string): Promise<{ card: Card
     count: links.filter(link => link.categoryId === group.id).length,
   }));
   const mapCard = (card: typeof found): Card => ({
-    ...card,
+    ...publicCard(card),
     priceMode: card.priceMode === "auto" ? "auto" as const : "manual" as const,
     createdAt: card.createdAt.toISOString(),
     priceUpdatedAt: card.priceUpdatedAt?.toISOString() ?? null,
@@ -272,7 +274,7 @@ export async function getCardPrintings(scryfallId: string): Promise<{ card: Card
   return { card: mapCard(found), printings: printings.map(mapCard), collections };
 }
 
-export async function getOrders(filter?: { email?: string; orderNumber?: string; customerId?: string }): Promise<StoreOrder[]> {
+export async function getOrders(filter?: { email?: string; orderNumber?: string; customerId?: string }, includeCosts = false): Promise<StoreOrder[]> {
   const list = filter?.customerId
     ? await db.select().from(orders).where(eq(orders.customerId, filter.customerId)).orderBy(desc(orders.createdAt)).limit(100)
     : filter?.email && filter.orderNumber
@@ -285,7 +287,7 @@ export async function getOrders(filter?: { email?: string; orderNumber?: string;
     createdAt: order.createdAt.toISOString(),
     paidAt: order.paidAt ? order.paidAt.toISOString() : null,
     refundedAt: order.refundedAt ? order.refundedAt.toISOString() : null,
-    items: lines.filter(line => line.orderId === order.id),
+    items: lines.filter(line => line.orderId === order.id).map(({costBasis, legacyCostBasis: _legacy, ...safe}) => includeCosts ? {...safe,costBasis} : safe),
   }));
 }
 

@@ -9,7 +9,7 @@ export default async function AdminPage() {
   if (!(await hasOwnerAccess())) return <AdminLogin/>;
   const [catalog, orders, history, stats] = await Promise.all([
     getCatalog({ limit: 100 }), 
-    getOrders(), 
+    getOrders(undefined, true),
     getImportHistory(),
     getInventoryStats(),
   ]);
