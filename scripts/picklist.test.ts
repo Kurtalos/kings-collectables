@@ -63,3 +63,13 @@ test("deleted product references remain distinguishable by historical variant", 
   );
   assert.equal(rows.filter((r) => r[0] === "COMBINED PICKING TOTAL").length, 2);
 });
+
+test("PDF separates orders and paginates long orders without dropping lines", async () => {
+  const { picklistPDF } = await import("../src/lib/picklist-pdf");
+  const pdf = await picklistPDF([line, { ...line, orderNumber: "KC-2", cardName: "Éowyn, Shieldmaiden" }]);
+  assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
+  assert.equal((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length, 2);
+  const long = await picklistPDF(Array.from({ length: 100 }, (_, i) => ({ ...line, cardName: `Card ${i}`, productId: null, setCode: null })));
+  assert.ok((long.toString("latin1").match(/\/Type \/Page\b/g) || []).length > 2);
+  assert.ok(long.subarray(-20).toString().includes("%%EOF"));
+});

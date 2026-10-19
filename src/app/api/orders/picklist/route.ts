@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { orders, orderItems, products } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { requireOwner, apiError } from "@/lib/admin-auth";
+import { picklistPDF } from "@/lib/picklist-pdf";
 import { picklistCSV } from "@/lib/picklist";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
@@ -51,10 +52,12 @@ export async function GET(request: Request) {
         { error: "Packing orders have no card lines to export." },
         { status: 409 },
       );
-    return new Response(picklistCSV(result.lines), {
+    const csv = new URL(request.url).searchParams.get("format") === "csv";
+    const body = csv ? picklistCSV(result.lines) : new Uint8Array(await picklistPDF(result.lines));
+    return new Response(body, {
       headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="kings-picklist-${new Date().toISOString().slice(0, 10)}.csv"`,
+        "Content-Type": csv ? "text/csv; charset=utf-8" : "application/pdf",
+        "Content-Disposition": `attachment; filename="kings-picklist-${new Date().toISOString().slice(0, 10)}.${csv ? "csv" : "pdf"}"`,
         "Cache-Control": "private, no-store",
         "X-Picklist-Orders": String(result.packing.length),
         "X-Picklist-Units": String(

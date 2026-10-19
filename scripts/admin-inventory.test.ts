@@ -227,7 +227,11 @@ async function main() {
       "SELECT quantity FROM products WHERE id=$1",
       [ids[0]],
     );
-    const exported = await owner.get("/api/orders/picklist");
+    const pdf = await owner.get("/api/orders/picklist");
+    assert.equal(pdf.status(), 200);
+    assert.match(pdf.headers()["content-type"], /application\/pdf/);
+    assert.equal((await pdf.body()).subarray(0, 5).toString(), "%PDF-");
+    const exported = await owner.get("/api/orders/picklist?format=csv");
     assert.equal(exported.status(), 200);
     assert.equal(
       Number(exported.headers()["x-picklist-orders"]),
@@ -534,7 +538,7 @@ async function main() {
       .waitFor();
     assert.equal(errors.length, 0, errors.join("\n"));
     console.log(
-      "PASS Chromium: search-first intake makes no blank catalogue requests; clearing search preserves receipt; explicit default-cost application and per-line review; saved $1.25 cost visible in editor alongside known-zero and unknown costs; exact-variant isolation; history shortcut; CSV picklist; desktop/mobile screenshots and no page errors.",
+      "PASS Chromium: search-first intake makes no blank catalogue requests; clearing search preserves receipt; explicit default-cost application and per-line review; saved $1.25 cost visible in editor alongside known-zero and unknown costs; exact-variant isolation; history shortcut; PDF picklist; desktop/mobile screenshots and no page errors.",
     );
   } finally {
     await browser?.close();

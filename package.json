@@ -12,7 +12,9 @@
     "test:inventory": "tsx --test scripts/inventory-unit.test.ts",
     "test:inventory:db": "tsx scripts/inventory-db.test.ts",
     "test:inventory:browser": "node scripts/inventory-browser.mjs",
-    "test:inventory:database": "tsx scripts/inventory-test-db.ts"
+    "test:inventory:database": "tsx scripts/inventory-test-db.ts",
+    "test:picklist": "tsx --test scripts/picklist.test.ts",
+    "test:admin-inventory": "tsx scripts/admin-inventory.test.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",
@@ -21,6 +23,7 @@
     "drizzle-orm": "0.45.2",
     "lucide-react": "^1.52.0",
     "next": "^16.4.0",
+    "pdfkit": "^0.20.2",
     "pg": "8.20.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
@@ -32,6 +35,7 @@
     "@sparticuz/chromium": "^153.0.0",
     "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
+    "@types/pdfkit": "^0.17.6",
     "@types/pg": "8.18.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
