@@ -3,34 +3,18 @@ import { customers, wishlists, watchlists, products } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { apiError } from "@/lib/admin-auth";
 import { getCustomer, requireCustomer, setCustomerSession, clearCustomerSession, hashPassword, verifyPassword, validatePassword, sameOrigin } from "@/lib/customer-auth";
-import { getOrders } from "@/lib/catalog";
-import { listAddresses } from "@/app/api/addresses/route";
+import { getAccountData } from "@/lib/account-data";
 import { readBody, validEmail, textField, isUUID } from "@/lib/validation";
 import { limitPublicRequests } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-async function accountPayload(customer: { id: string; name: string; email: string }) {
-  const [saved, watched, orders, addressesList] = await Promise.all([
-    db.select({ productId: wishlists.productId }).from(wishlists).where(eq(wishlists.customerId, customer.id)),
-    db.select().from(watchlists).where(eq(watchlists.customerId, customer.id)),
-    getOrders({ customerId: customer.id }),
-    listAddresses(customer.id),
-  ]);
-  return {
-    customer,
-    orders,
-    addresses: addressesList,
-    wishlistIds: saved.map(row => row.productId),
-    watchlist: watched.map(row => ({ productId: row.productId, lastSeenQuantity: row.lastSeenQuantity, lastSeenPrice: row.lastSeenPrice, createdAt: row.createdAt.toISOString() })),
-  };
-}
+const accountPayload = getAccountData;
 
 export async function GET() {
   try {
     const customer = await getCustomer();
-    if (!customer) return Response.json({ customer: null, orders: [], addresses: [], wishlistIds: [], watchlist: [] });
-    return Response.json(await accountPayload(customer));
+    return Response.json(await accountPayload(customer), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return apiError(error); }
 }
 
@@ -46,7 +30,7 @@ export async function POST(request: Request) {
     const action = String(body.action || "");
 
     if (action === "register" || action === "login") {
-      const limited = limitPublicRequests(request, `account-${action}`, 8); if (limited) return limited;
+      const limited = limitPublicRequests(request, `account-${action}`, 20); if (limited) return limited;
       if (!validEmail(body.email)) throw new Error("Enter a valid email address.");
       const email = body.email.toLowerCase().trim();
       const password = validatePassword(body.password);

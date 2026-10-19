@@ -63,36 +63,23 @@ export function CatalogueView({ products, collections, initialFilters, renderCar
   }
 
   const results = useMemo(() => {
-    const filtered = products.filter(card => 
-      (!query || `${card.name} ${card.setName} ${card.setCode} ${card.typeLine}`.toLowerCase().includes(query.toLowerCase())) && 
-      (!setCode || card.setCode === setCode) && 
-      (!category || (selectedGroup && card.categoryIds.includes(selectedGroup.id))) && 
-      (!rarities.length || rarities.includes(card.rarity)) && 
-      (!colors.length || colors.some(color => color === "C" ? !card.colors.length : card.colors.includes(color))) && 
-      (!onlyStock || card.quantity > 0) && 
-      (!onlyFoil || card.finish !== "Non-foil") && 
+    const filtered = products.filter(card =>
+      (!query || `${card.name} ${card.setName} ${card.setCode} ${card.typeLine}`.toLowerCase().includes(query.toLowerCase())) &&
+      (!setCode || card.setCode === setCode) &&
+      (!category || (selectedGroup && card.categoryIds.includes(selectedGroup.id))) &&
+      (!rarities.length || rarities.includes(card.rarity)) &&
+      (!colors.length || colors.some(color => color === "C" ? !card.colors.length : card.colors.includes(color))) &&
+      (!onlyStock || card.quantity > 0) &&
+      (!onlyFoil || card.finish !== "Non-foil") &&
       card.price <= maxPrice
     );
 
-    return filtered.sort((a, b) => {
-      if (sort === "price-low") return a.price - b.price;
-      if (sort === "price-high") return b.price - a.price;
-      if (sort === "name") return a.name.localeCompare(b.name);
-      if (sort === "newest") return b.createdAt.localeCompare(a.createdAt);
-      
-      // Default "recommended": In-stock cards first, then featured, then popular
-      const stockDiff = Number(b.quantity > 0) - Number(a.quantity > 0);
-      if (stockDiff !== 0) return stockDiff;
-
-      const featDiff = Number(b.featured) - Number(a.featured);
-      if (featDiff !== 0) return featDiff;
-
-      const aOrder = FEATURED_ORDER.indexOf(a.name) < 0 ? 99 : FEATURED_ORDER.indexOf(a.name);
-      const bOrder = FEATURED_ORDER.indexOf(b.name) < 0 ? 99 : FEATURED_ORDER.indexOf(b.name);
-      if (aOrder !== bOrder) return aOrder - bOrder;
-
-      return a.name.localeCompare(b.name);
-    });
+    // "Recommended" preserves the server ordering, which already ranks in-stock and exact-name matches first.
+    if (sort === "price-low") return [...filtered].sort((a, b) => a.price - b.price);
+    if (sort === "price-high") return [...filtered].sort((a, b) => b.price - a.price);
+    if (sort === "name") return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === "newest") return [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return filtered;
   }, [products, query, setCode, category, selectedGroup, rarities, colors, onlyStock, onlyFoil, maxPrice, sort]);
 
   const title = query ? `Results for “${query}”` : selectedGroup?.name || sets.find(([code]) => code === setCode)?.[1] || "Magic singles";

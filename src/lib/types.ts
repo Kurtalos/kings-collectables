@@ -28,6 +28,16 @@ export type CartLine = { product: Card; quantity: number };
 export type Customer = { id: string; name: string; email: string };
 export type SavedAddress = { id: string; label: string; recipientName: string; line1: string; line2: string | null; suburb: string; state: string; postcode: string; phone: string | null; isDefault: boolean };
 export type WatchItem = { productId: string; lastSeenQuantity: number; lastSeenPrice: number; createdAt: string };
+/** Account data shared by server rendering and the customer API. Saved cards are fetched by ID, not from a paginated catalogue. */
+export type AccountData = {
+  customer: Customer | null;
+  orders: StoreOrder[];
+  addresses: SavedAddress[];
+  wishlistIds: string[];
+  watchlist: WatchItem[];
+  wishlistProducts: Card[];
+  watchProducts: Card[];
+};
 export type StoreOrder = {
   id: string; orderNumber: string; customerId: string | null; customerName: string; email: string; shippingAddress: string;
   status: string; paymentMethod: string | null; paymentReceipt: string | null; paidAt: string | null;

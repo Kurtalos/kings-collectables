@@ -225,6 +225,53 @@ export async function getCatalog(options?: CatalogFilterOptions): Promise<{ prod
   return { products: cards, collections };
 }
 
+/** Fetch exact printings for carts and account lists, regardless of catalogue pagination. */
+export async function getProductsByIds(ids: string[]): Promise<Card[]> {
+  const uniqueIds = [...new Set(ids)];
+  if (!uniqueIds.length) return [];
+  const [cards, links] = await Promise.all([
+    db.select().from(products).where(inArray(products.id, uniqueIds)),
+    db.select().from(productCategories).where(inArray(productCategories.productId, uniqueIds)),
+  ]);
+  const categoriesByProduct = new Map<string, string[]>();
+  for (const link of links) categoriesByProduct.set(link.productId, [...(categoriesByProduct.get(link.productId) || []), link.categoryId]);
+  const byId = new Map(cards.map(card => [card.id, {
+    ...card,
+    priceMode: card.priceMode === "auto" ? "auto" as const : "manual" as const,
+    createdAt: card.createdAt.toISOString(),
+    priceUpdatedAt: card.priceUpdatedAt?.toISOString() ?? null,
+    categoryIds: categoriesByProduct.get(card.id) || [],
+  }]));
+  return uniqueIds.flatMap(id => { const card = byId.get(id); return card ? [card] : []; });
+}
+
+/** All printings of one card (same name, every set), used by the card detail page. */
+export async function getCardPrintings(scryfallId: string): Promise<{ card: Card | null; printings: Card[]; collections: Collection[] }> {
+  await ensureSeeded();
+  const [found] = await db.select().from(products).where(eq(products.scryfallId, scryfallId)).limit(1);
+  if (!found) return { card: null, printings: [], collections: [] };
+
+  const [groups, links, printings] = await Promise.all([
+    db.select().from(categories).orderBy(categories.createdAt),
+    db.select().from(productCategories),
+    // Printings of the same card share the exact name; front-face matching keeps double-sided cards together.
+    db.select().from(products).where(sql`${products.name} = ${found.name}`).orderBy(asc(products.setCode), asc(products.collectorNumber)),
+  ]);
+
+  const collections = groups.map(group => ({
+    id: group.id, name: group.name, slug: group.slug, description: group.description, color: group.color,
+    count: links.filter(link => link.categoryId === group.id).length,
+  }));
+  const mapCard = (card: typeof found): Card => ({
+    ...card,
+    priceMode: card.priceMode === "auto" ? "auto" as const : "manual" as const,
+    createdAt: card.createdAt.toISOString(),
+    priceUpdatedAt: card.priceUpdatedAt?.toISOString() ?? null,
+    categoryIds: links.filter(link => link.productId === card.id).map(link => link.categoryId),
+  });
+  return { card: mapCard(found), printings: printings.map(mapCard), collections };
+}
+
 export async function getOrders(filter?: { email?: string; orderNumber?: string; customerId?: string }): Promise<StoreOrder[]> {
   const list = filter?.customerId
     ? await db.select().from(orders).where(eq(orders.customerId, filter.customerId)).orderBy(desc(orders.createdAt)).limit(100)

@@ -180,6 +180,7 @@ An independent Australian Magic: The Gathering store built with Next.js App Rout
 
 - Responsive storefront with genuine card scans, a promotional carousel, set browsing and curated selections.
 - Search, collection, set, colour, rarity, price, foil and stock filters; sorting and grid/list views.
+- Dedicated card pages at `/cards/[scryfallId]` listing every printing of a card, grouped by set, each with its own price, stock, condition and finish.
 - Card quick views, device-local wishlists and persistent carts.
 - Stock-aware order reservations with server-calculated AUD prices and shipping.
 - Owner workspace at `/admin`: inventory editing, CSV export, bulk collection assignment, imports, collections, orders and messages.

@@ -486,6 +486,7 @@ async function main() {
 }
 main().finally(async () => {
   if (product) await db.update(products).set({ price: product.price, quantity: product.quantity }).where(eq(products.id, product.id));
+  if (pricingCardId) await db.update(products).set({ priceMode: "manual", price: pricingCardStart }).where(eq(products.id, pricingCardId));
   if (variantId) await db.delete(products).where(eq(products.id, variantId));
   if (groupId) await db.delete(categories).where(eq(categories.id, groupId));
   if (importId) await db.delete(imports).where(eq(imports.id, importId));

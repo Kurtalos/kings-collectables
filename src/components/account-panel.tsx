@@ -5,23 +5,21 @@ import { ArrowRight, Heart, Bell, PackageSearch, LogOut, LoaderCircle, Check, Ey
 import { EmptyState, requestJSON } from "./ui";
 import { ProductCard } from "./product-card";
 import { AU_STATES, type AddressFields } from "@/lib/address";
-import { money, type Card, type Customer, type StoreOrder, type WatchItem, type SavedAddress } from "@/lib/types";
-
-type AccountData = { customer: Customer | null; orders: StoreOrder[]; addresses: SavedAddress[]; wishlistIds: string[]; watchlist: WatchItem[] };
+import { money, type Card, type Customer, type StoreOrder, type WatchItem, type SavedAddress, type AccountData } from "@/lib/types";
 type Tab = "orders" | "wishlist" | "watchlist" | "addresses";
 const BLANK: AddressFields = { label: "Home", recipientName: "", line1: "", line2: "", suburb: "", state: "VIC", postcode: "", phone: "" };
 
-export function AccountPanel({ products, customer, orders, addresses, onAddresses, saved, watched, watchMeta, onAuth, onLogout, onSave, onWatch, onAdd, onView }: {
+export function AccountPanel({ products, customer, orders, addresses, onAddresses, saved, watched, watchMeta, savedProducts, watchProducts, onAuth, onLogout, onSave, onWatch, onAdd, onView }: {
   products: Card[]; customer: Customer | null; orders: StoreOrder[]; addresses: SavedAddress[]; onAddresses: (next: SavedAddress[]) => void;
-  saved: string[]; watched: string[]; watchMeta: WatchItem[];
-  onAuth: (data: AccountData) => void; onLogout: () => void; onSave: (card: Card) => void; onWatch: (card: Card) => void; onAdd: (card: Card) => void; onView: (card: Card) => void;
+  saved: string[]; watched: string[]; watchMeta: WatchItem[]; savedProducts: Card[]; watchProducts: Card[];
+  onAuth: (data: AccountData) => void | Promise<void>; onLogout: () => void; onSave: (card: Card) => void; onWatch: (card: Card) => void; onAdd: (card: Card) => void; onView: (card: Card) => void;
 }) {
   const [mode, setMode] = useState<"login" | "register">("login"), [tab, setTab] = useState<Tab>("orders"), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [draft, setDraft] = useState<AddressFields | null>(null), [editingId, setEditingId] = useState<string | null>(null);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError("");
     const fields = new FormData(event.currentTarget);
-    try { onAuth(await requestJSON<AccountData>("/api/account", { method: "POST", body: JSON.stringify({ action: mode, name: fields.get("name"), email: fields.get("email"), password: fields.get("password") }) })); }
+    try { await onAuth(await requestJSON<AccountData>("/api/account", { method: "POST", body: JSON.stringify({ action: mode, name: fields.get("name"), email: fields.get("email"), password: fields.get("password") }) })); }
     catch (error) { setError(error instanceof Error ? error.message : "Please try again."); }
     finally { setBusy(false); }
   }
@@ -48,10 +46,11 @@ export function AccountPanel({ products, customer, orders, addresses, onAddresse
     finally { setBusy(false); }
   }
   if (!customer) return <div className="account-auth"><div className="account-auth-intro"><span className="account-crown"><Crown size={28}/></span><span className="eyebrow">YOUR COLLECTION, YOUR ACCOUNT</span><h1>Join Kings Collectables.</h1><p>Create a free account to track orders, save delivery addresses, keep a wishlist, and watch cards for restocks and price drops.</p></div><div className="account-auth-card"><div className="account-tabs">{[{ id: "login" as const, label: "Sign in" }, { id: "register" as const, label: "Create account" }].map(item => <button key={item.id} className={mode === item.id ? "active" : ""} onClick={() => { setMode(item.id); setError(""); }}>{item.label}</button>)}</div><form className="stack-form" onSubmit={submit}>{mode === "register" && <label>Full name<input name="name" required maxLength={120} autoComplete="name" placeholder="Alex Planeswalker"/></label>}<label>Email address<input name="email" type="email" required maxLength={254} autoComplete="email" placeholder="you@example.com"/></label><label>Password<input name="password" type="password" required minLength={8} maxLength={72} autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="At least 8 characters"/></label>{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary" disabled={busy}>{busy ? <LoaderCircle className="spin" size={16}/> : mode === "register" ? <Crown size={16}/> : <Check size={16}/>} {busy ? "Please wait…" : mode === "register" ? "Create my account" : "Sign in"}<ArrowRight size={16}/></button></form><p className="muted small">Passwords are stored securely. Guest checkout still works if you prefer not to register.</p></div></div>;
-  const wishCards = products.filter(card => saved.includes(card.id));
-  const watchCards = products.filter(card => watched.includes(card.id));
+  const available = new Map([...products, ...savedProducts, ...watchProducts].map(card => [card.id, card]));
+  const wishCards = saved.flatMap(id => { const card = available.get(id); return card ? [card] : []; });
+  const watchCards = watched.flatMap(id => { const card = available.get(id); return card ? [card] : []; });
   return <div className="account-hub"><div className="account-hub-heading"><div><span className="eyebrow">WELCOME BACK</span><h1>Hey {customer.name.split(" ")[0]}.</h1><p>Your orders, addresses, saved cards and watch list live here.</p></div><button className="button button-outline" onClick={logout} disabled={busy}>{busy ? <LoaderCircle className="spin" size={15}/> : <LogOut size={15}/>} Sign out</button></div>
-    <div className="account-stats">{([{ id: "orders" as Tab, icon: PackageSearch, count: orders.length, label: "Orders" }, { id: "addresses" as Tab, icon: MapPin, count: addresses.length, label: "Addresses" }, { id: "wishlist" as Tab, icon: Heart, count: wishCards.length, label: "Wishlist" }, { id: "watchlist" as Tab, icon: Bell, count: watchCards.length, label: "Watch list" }]).map(item => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}><item.icon size={18}/><strong>{item.count}</strong><span>{item.label}</span></button>)}</div>
+    <div className="account-stats">{([{ id: "orders" as Tab, icon: PackageSearch, count: orders.length, label: "Orders" }, { id: "addresses" as Tab, icon: MapPin, count: addresses.length, label: "Addresses" }, { id: "wishlist" as Tab, icon: Heart, count: saved.length, label: "Wishlist" }, { id: "watchlist" as Tab, icon: Bell, count: watched.length, label: "Watch list" }]).map(item => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}><item.icon size={18}/><strong>{item.count}</strong><span>{item.label}</span></button>)}</div>
     {error && tab === "addresses" && <p className="form-error" role="alert"><AlertCircle size={14}/>{error}</p>}
     {tab === "orders" && (orders.length ? <div className="account-orders">{orders.map(order => <article className="account-order" key={order.id}><div className="tracked-order-top"><strong>{order.orderNumber}</strong><span className="status-pill">{order.status}</span></div><p>Placed {new Date(order.createdAt).toLocaleDateString("en-AU")} · {order.channel === "pos" ? "In store" : "Online"}</p><div className="account-order-address"><MapPin size={13}/><span>{order.shippingAddress.replace(/\n/g, ", ")}</span></div>{order.items.map(item => <div className="tracked-line" key={item.id}><span>{item.quantity} × {item.cardName}<small>{item.variant}</small></span><strong>{money(item.unitPrice * item.quantity)}</strong></div>)}<div className="tracked-total"><span>Total, including shipping</span><strong>{money(order.total)} AUD</strong></div></article>)}</div> : <EmptyState icon={<ShoppingBag size={34}/>} title="No orders yet" description="When you reserve cards, they’ll appear here automatically."><Link href="/cards" className="button button-primary">Shop singles <ArrowRight size={16}/></Link></EmptyState>)}
     {tab === "addresses" && <div className="account-addresses">

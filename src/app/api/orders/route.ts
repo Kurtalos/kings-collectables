@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const email = params.get("email"), orderNumber = params.get("orderNumber");
     if (email && orderNumber) {
-      const limited = limitPublicRequests(request, "order-lookup", 20); if (limited) return limited;
+      const limited = limitPublicRequests(request, "order-lookup", 60); if (limited) return limited;
       if (!validEmail(email) || orderNumber.length > 50) throw new Error("Enter a valid email and order number.");
       return Response.json({ orders: await getOrders({ email, orderNumber }) });
     }
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   } catch (error) { return apiError(error); }
 }
 export async function POST(request: Request) {
-  const limited = limitPublicRequests(request, "checkout", 20); if (limited) return limited;
+  const limited = limitPublicRequests(request, "checkout", 60); if (limited) return limited;
   try {
     await ensureSeeded();
     const body = await readBody(request);
