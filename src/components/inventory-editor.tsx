@@ -51,7 +51,7 @@ export function InventoryEditor({ card, collections, onClose, onSaved }: { card:
         body: JSON.stringify({
           scryfallId: found.scryfallId,
           price: Math.round(Number(price) * 100),
-          quantity: Number(quantity),
+
           condition,
           finish,
           featured,
@@ -115,8 +115,8 @@ export function InventoryEditor({ card, collections, onClose, onSaved }: { card:
                   </div>
                 </label>
                 <label>
-                  Stock quantity
-                  <input type="number" min="0" max="100000" step="1" required value={quantity} onChange={event => setQuantity(event.target.value)}/>
+                  Available quantity (receive stock to increase)
+                  <input disabled type="number" min="0" max="100000" step="1" required value={quantity} onChange={event => setQuantity(event.target.value)}/>
                 </label>
               </div>
 

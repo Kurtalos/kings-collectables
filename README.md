@@ -265,3 +265,9 @@ The browser suite leaves a small amount of data behind by design (it exercises r
 Use `TEST_BASE_URL` to point these checks at a non-default URL. API health is available at `/api/health`.
 
 Magic: The Gathering and its card imagery belong to their respective rights holders. Card metadata and scans are supplied by Scryfall. Kings Collectables is not affiliated with Wizards of the Coast.
+
+## Inventory intake and FIFO costs
+
+See [INVENTORY-INTAKE.md](INVENTORY-INTAKE.md) for the Receive stock workflow, CSV format,
+POS trade-in/return behaviour, safe VPS migration commands and test setup. Apply the
+additive inventory migration before running this version against an existing database.

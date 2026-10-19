@@ -1,11 +1,8 @@
 import { db } from "@/db";
 import { products, categories, productCategories } from "@/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
-import { ensureSeeded } from "@/lib/catalog";
+import { eq, inArray } from "drizzle-orm";
 import { apiError, requireOwner } from "@/lib/admin-auth";
-import { readBody, isUUID, validateStock, validatePrice, validateVariant } from "@/lib/validation";
-import { cardMetadata, scryfallRequest, type ScryfallCard } from "@/lib/scryfall";
-import { checkAndNotifyRestock } from "@/lib/restock";
+import { readBody, isUUID } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -21,80 +18,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  try {
-    await requireOwner(request); 
-    await ensureSeeded();
-    const body = await readBody(request);
-    if (!isUUID(body.scryfallId)) throw new Error("Look up a card before adding it.");
-    const scryfallId = String(body.scryfallId);
-    const price = validatePrice(body.price);
-    const quantity = validateStock(body.quantity);
-    const condition = String(body.condition || "Near mint");
-    const finish = String(body.finish || "Non-foil");
-    validateVariant(condition, finish);
-    
-    const groupIds = Array.isArray(body.categoryIds) ? body.categoryIds : [];
-    if (groupIds.length > 30 || !groupIds.every(isUUID)) throw new Error("Choose valid collections.");
-    if (groupIds.length && (await db.select().from(categories).where(inArray(categories.id, groupIds))).length !== new Set(groupIds).size) {
-      throw new Error("One of the collections no longer exists.");
-    }
-
-    const [known] = await db.select().from(products).where(eq(products.scryfallId, scryfallId)).limit(1);
-    const metadata = known ? (({ id: _id, createdAt: _date, price: _price, quantity: _quantity, condition: _condition, finish: _finish, priceMode: _pm, usdPrice: _usd, priceUpdatedAt: _pu, ...rest }) => rest)(known) : cardMetadata(await scryfallRequest(`/cards/${scryfallId}`) as ScryfallCard);
-
-    const result = await db.transaction(async tx => {
-      // Check if this exact variant (scryfallId, condition, finish) already exists
-      const [existing] = await tx.select().from(products).where(
-        and(
-          eq(products.scryfallId, scryfallId),
-          eq(products.condition, condition),
-          eq(products.finish, finish)
-        )
-      ).for("update");
-
-      let card;
-      if (existing) {
-        // If it already exists (e.g. from the 110k sync or previous entry), update price, stock, and settings
-        const oldQty = existing.quantity;
-        const [updated] = await tx.update(products).set({
-          price,
-          quantity,
-          featured: Boolean(body.featured),
-          priceMode: body.priceMode === "auto" ? "auto" : "manual",
-        }).where(eq(products.id, existing.id)).returning();
-        card = updated;
-
-        if (oldQty === 0 && quantity > 0) {
-          await checkAndNotifyRestock(card.id, oldQty, quantity);
-        }
-      } else {
-        // Insert new variant (e.g. specific condition/finish not yet created)
-        const [inserted] = await tx.insert(products).values({
-          ...metadata,
-          price,
-          quantity,
-          condition,
-          finish,
-          featured: Boolean(body.featured),
-          priceMode: body.priceMode === "auto" ? "auto" : "manual",
-        }).returning();
-        card = inserted;
-
-        if (quantity > 0) {
-          await checkAndNotifyRestock(card.id, 0, quantity);
-        }
-      }
-
-      if (groupIds.length) {
-        await tx.insert(productCategories).values([...new Set(groupIds)].map(categoryId => ({ productId: card.id, categoryId }))).onConflictDoNothing();
-      }
-      return card;
-    });
-
-    return Response.json({ product: result }, { status: 201 });
-  } catch (error) { 
-    return apiError(error); 
-  }
+ try { await requireOwner(request); throw new Error("Use Receive stock to add inventory and acquisition lots."); } catch(error) { return apiError(error); }
 }
 
 export async function PUT(request: Request) {
