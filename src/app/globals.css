@@ -309,3 +309,7 @@ html:not([data-store-theme=classic]) .eyebrow,html:not([data-store-theme=classic
 html:not([data-store-theme=classic]) .hero-eyebrow,html:not([data-store-theme=classic]) .newsletter-copy .eyebrow,html:not([data-store-theme=classic]) .admin-sidebar .eyebrow{color:var(--gold)}
 html:not([data-store-theme=classic]) .collection-filter.selected,html:not([data-store-theme=classic]) .view-toggle .selected{background:var(--rose)}
 @media(max-width:760px){.brand .custom-brand-name{max-width:150px;font-size:12px}.announcement-message{overflow-wrap:anywhere}}
+.hero-content h1,.hero-content p,.hero-eyebrow{overflow-wrap:anywhere}.hero-content .hero-actions{flex-wrap:wrap}.hero-content h1{max-width:100%}
+/* Editable copy can be longer than the original promotions; never clip it. */
+.hero{height:auto;min-height:325px}.hero-content{padding-bottom:82px}.hero .hero-eyebrow{white-space:normal}.hero .hero-secondary{white-space:normal}
+@media(max-width:600px){.hero{min-height:330px}.hero-content{padding-bottom:84px}}

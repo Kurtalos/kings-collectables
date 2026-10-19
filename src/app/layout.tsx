@@ -1,3 +1,4 @@
+import { getHomepageCarousel } from "@/lib/homepage-carousel-server";
 import type { Metadata } from "next";
 import type { ReactNode, CSSProperties } from "react";
 import "./globals.css";
@@ -16,10 +17,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const settings = await getStoreSettings();
+  const [settings, slides] = await Promise.all([getStoreSettings(), getHomepageCarousel()]);
   return (
     <html lang="en" data-store-theme={settings.theme} style={themeVariables(settings.theme) as CSSProperties}>
-      <body><StoreSettingsProvider settings={settings}>{children}</StoreSettingsProvider></body>
+      <body><StoreSettingsProvider settings={settings} slides={slides.filter(slide => slide.enabled)}>{children}</StoreSettingsProvider></body>
     </html>
   );
 }

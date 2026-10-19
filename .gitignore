@@ -25,3 +25,6 @@ npm-debug.log*
 .vscode/
 .idea/
 .DS_Store
+
+# Runtime carousel artwork — back up separately, never overwrite during deployment
+/data/uploads/
