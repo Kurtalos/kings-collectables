@@ -120,6 +120,21 @@ async function main() {
       await owner.get("/api/inventory/history?productId=" + ids[0]),
     );
     assert.equal(history.variants.length, 6);
+    const exactHistory = await json(
+      await owner.get(
+        "/api/inventory/history?productId=" + ids[0] + "&scope=variant",
+      ),
+    );
+    assert.equal(exactHistory.variants.length, 1);
+    assert.equal(exactHistory.lots.length, 2);
+    assert.equal(
+      (
+        await owner.get(
+          "/api/inventory/history?productId=" + ids[0] + "&scope=invalid",
+        )
+      ).status(),
+      400,
+    );
     assert.equal(history.lots.length, 7);
     assert.equal(
       Number(
@@ -291,6 +306,10 @@ async function main() {
     await context.addCookies((await owner.storageState()).cookies);
     const page = await context.newPage();
     const errors: string[] = [];
+    const catalogueRequests: string[] = [];
+    page.on("request", (r) => {
+      if (r.url().includes("/api/inventory?")) catalogueRequests.push(r.url());
+    });
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(base + "/admin", { waitUntil: "networkidle" });
     await page.getByLabel("Search inventory", { exact: true }).fill(name);
@@ -323,6 +342,28 @@ async function main() {
     });
     await dialog.getByRole("button", { name: "Close dialog" }).click();
     await page.setViewportSize({ width: 1600, height: 1100 });
+    const editRow = page.locator(".inventory-table tbody tr").filter({
+      has: page
+        .locator(".inventory-name")
+        .filter({ hasText: name })
+        .filter({ hasText: "#100" }),
+    });
+    await editRow
+      .getByRole("button", { name: `Edit ${name}`, exact: true })
+      .click();
+    const costs = page.locator(".card-paid-panel");
+    await costs.getByRole("cell", { name: "$0.00", exact: true }).waitFor();
+    await costs.getByRole("cell", { name: "Unknown", exact: true }).waitFor();
+    assert.equal(
+      await costs.getByRole("cell", { name: "$2.50", exact: true }).count(),
+      0,
+      "Other variants must not leak into the selected cost panel",
+    );
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Close dialog" })
+      .click();
+
     const downloadPromise = page.waitForEvent("download");
     await page
       .getByRole("button", { name: "Export Picklist", exact: true })
@@ -334,6 +375,25 @@ async function main() {
       .getByRole("button", { name: "Receive stock", exact: true })
       .first()
       .click();
+
+    await page
+      .getByRole("heading", {
+        name: "Which cards are you receiving?",
+        exact: true,
+      })
+      .waitFor();
+    await page.waitForTimeout(400);
+    assert.equal(
+      catalogueRequests.length,
+      0,
+      "Opening intake must not fetch the catalogue",
+    );
+    assert.equal(await page.locator(".receive-search table").count(), 0);
+    assert.equal(await page.locator(".receive-receipt").count(), 0);
+    await page.screenshot({
+      path: "artifacts/receive-stock-search-first.png",
+      fullPage: true,
+    });
     await page.getByLabel("Search the complete catalogue").fill(name);
     await page
       .getByRole("button", { name: "Add stock", exact: true })
@@ -344,6 +404,43 @@ async function main() {
       .nth(1)
       .click();
     assert.equal(await page.locator(".receive-line").count(), 2);
+    await page.getByLabel("Search the complete catalogue").fill("");
+    await page
+      .getByRole("heading", {
+        name: "Which cards are you receiving?",
+        exact: true,
+      })
+      .waitFor();
+    assert.equal(await page.locator(".receive-search table").count(), 0);
+    assert.equal(
+      await page.locator(".receive-line").count(),
+      2,
+      "Clearing search must preserve receipt",
+    );
+    await page.getByLabel("Search the complete catalogue").fill(name);
+    await page
+      .getByLabel("Default cost for new cards (AUD)", { exact: true })
+      .fill("1.25");
+    await page
+      .getByRole("button", {
+        name: "Apply default cost to blank receipt lines",
+        exact: true,
+      })
+      .click();
+    assert.equal(
+      await page
+        .locator(".receive-line")
+        .first()
+        .getByLabel("Unit cost AUD", { exact: true })
+        .inputValue(),
+      "1.25",
+    );
+    await page
+      .locator(".receive-line")
+      .nth(1)
+      .getByLabel("Unit cost AUD", { exact: true })
+      .fill("");
+
     await page
       .locator(".receive-line")
       .first()
@@ -381,6 +478,16 @@ async function main() {
     await page
       .getByRole("heading", { name: "Review receipt", exact: true })
       .waitFor();
+    await page
+      .locator(".receive-preview-table")
+      .getByRole("cell", { name: "$1.25", exact: true })
+      .waitFor();
+    assert.ok(
+      (await page
+        .locator(".receive-preview-table")
+        .getByRole("cell", { name: "Unknown", exact: true })
+        .count()) > 0,
+    );
     await page.getByRole("button", { name: "Confirm and add stock" }).click();
     await page
       .getByRole("status")
@@ -395,9 +502,39 @@ async function main() {
           l.unitCost === 125 && l.acquiredQuantity === 2,
       ),
     );
+
+    await page.setViewportSize({ width: 1600, height: 1100 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page
+      .getByRole("button", { name: /^Inventory/ })
+      .first()
+      .click();
+    await page.getByLabel("Search inventory", { exact: true }).fill(name);
+    await editRow
+      .getByRole("button", { name: `Edit ${name}`, exact: true })
+      .click();
+    await costs.getByRole("cell", { name: "$1.25", exact: true }).waitFor();
+    await page.screenshot({
+      path: "artifacts/card-editor-acquisition-costs.png",
+      animations: "disabled",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: "artifacts/card-editor-acquisition-costs-mobile.png",
+      animations: "disabled",
+      fullPage: true,
+    });
+    await costs
+      .getByRole("button", { name: "All versions & receipts →", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("heading", { name: "Printings & acquisition receipts" })
+      .waitFor();
     assert.equal(errors.length, 0, errors.join("\n"));
     console.log(
-      "PASS Chromium: inventory name opens cross-variant history; CSV picklist download; clean multi-card receipt, per-line cost/source, review/confirm; collapsed bulk tool; desktop/mobile screenshots and no mobile page overflow or page errors.",
+      "PASS Chromium: search-first intake makes no blank catalogue requests; clearing search preserves receipt; explicit default-cost application and per-line review; saved $1.25 cost visible in editor alongside known-zero and unknown costs; exact-variant isolation; history shortcut; CSV picklist; desktop/mobile screenshots and no page errors.",
     );
   } finally {
     await browser?.close();

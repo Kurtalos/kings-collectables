@@ -1,12 +1,13 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { Search, LoaderCircle, Save, Plus, ArrowLeft, Check } from "lucide-react";
+import { AcquisitionCostPanel } from "./acquisition-cost-panel";
 import { Modal, requestJSON } from "./ui";
 import { CONDITIONS, FINISHES, type Card, type Collection } from "@/lib/types";
 
 type MetadataCard = Omit<Card, "id" | "createdAt" | "categoryIds" | "quantity" | "price" | "condition" | "finish" | "priceMode" | "usdPrice" | "priceUpdatedAt">;
 
-export function InventoryEditor({ card, collections, onClose, onSaved }: { card: Card | null; collections: Collection[]; onClose: () => void; onSaved: () => void }) {
+export function InventoryEditor({ card, collections, onClose, onSaved, onViewHistory }: { card: Card | null; collections: Collection[]; onClose: () => void; onSaved: () => void; onViewHistory?: () => void }) {
   const [found, setFound] = useState<MetadataCard | null>(card);
   const [name, setName] = useState("");
   const [setCode, setSetCode] = useState("");
@@ -105,6 +106,7 @@ export function InventoryEditor({ card, collections, onClose, onSaved }: { card:
               </div>
             </div>
 
+            {card && <AcquisitionCostPanel key={card.id} productId={card.id} onViewHistory={onViewHistory}/>}
             <form className="stack-form" onSubmit={save}>
               <div className="form-two-columns">
                 <label>
@@ -123,13 +125,13 @@ export function InventoryEditor({ card, collections, onClose, onSaved }: { card:
               <div className="form-two-columns">
                 <label>
                   Condition
-                  <select value={condition} onChange={event => setCondition(event.target.value)}>
+                  <select disabled={Boolean(card)} value={condition} onChange={event => setCondition(event.target.value)}>
                     {CONDITIONS.map(item => <option key={item}>{item}</option>)}
                   </select>
                 </label>
                 <label>
                   Finish
-                  <select value={finish} onChange={event => setFinish(event.target.value)}>
+                  <select disabled={Boolean(card)} value={finish} onChange={event => setFinish(event.target.value)}>
                     {FINISHES.map(item => <option key={item}>{item}</option>)}
                   </select>
                 </label>

@@ -50,10 +50,11 @@ export async function GET(request: Request) {
       10000,
       Math.max(0, Number(url.searchParams.get("page")) || 0),
     );
+    const pageSize = url.searchParams.get("limit") === "10" ? 10 : 30;
     const cards =
       await db.execute(sql`SELECT id, scryfall_id AS "scryfallId",name,set_code AS "setCode",collector_number AS "collectorNumber",condition,finish,quantity,price
    FROM products WHERE (${q}='' OR name ILIKE ${"%" + q + "%"} OR set_code=${q.toLowerCase()} OR collector_number=${q} OR scryfall_id=${q} OR set_name ILIKE ${"%" + q + "%"})
-   ORDER BY name,set_code,collector_number,condition,finish,id LIMIT 30 OFFSET ${Math.floor(page) * 30}`);
+   ORDER BY name,set_code,collector_number,condition,finish,id LIMIT ${pageSize} OFFSET ${Math.floor(page) * pageSize}`);
     const totals =
       await db.execute(sql`SELECT COALESCE(sum(remaining_quantity),0)::bigint AS units,
    COALESCE(sum(remaining_quantity*unit_cost::bigint),0)::bigint AS "knownValue", COALESCE(sum(remaining_quantity) FILTER (WHERE unit_cost IS NULL),0)::bigint AS "unknownUnits" FROM inventory_lots`);
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
       cards: cards.rows,
       totals: totals.rows[0],
       page,
-      hasMore: cards.rows.length === 30,
+      hasMore: cards.rows.length === pageSize,
     });
   } catch (error) {
     return apiError(error);
