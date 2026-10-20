@@ -28,7 +28,9 @@
     "test:delivery": "tsx --test scripts/delivery.test.ts",
     "test:delivery:browser": "tsx scripts/delivery-browser.test.ts",
     "test:site-chrome": "tsx --test scripts/site-chrome.test.ts",
-    "test:site-chrome:browser": "tsx scripts/site-chrome-browser.test.ts"
+    "test:site-chrome:browser": "tsx scripts/site-chrome-browser.test.ts",
+    "test:trade-value": "tsx --test scripts/trade-value.test.ts",
+    "test:trade-value:browser": "tsx scripts/trade-value-browser.test.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",

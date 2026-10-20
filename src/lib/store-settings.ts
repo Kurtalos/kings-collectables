@@ -11,12 +11,13 @@ export type StoreTheme = keyof typeof STORE_THEMES;
 export type StoreSettings = {
   storeName: string; headerSlogan: string; sidebarSlogan: string; legalName: string; abn: string; address: string;
   email: string; phone: string; openingHours: string;
+  tradeInPercent: number;
   deliveryOptions?: DeliveryOption[];
   shippingFlat: number; freeShippingThreshold: number | null; theme: StoreTheme;
 };
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   storeName: "Kings Collectables", headerSlogan: "A little more independent. A lot more you.", sidebarSlogan: "Your independent store", legalName: "", abn: "", address: "", email: "", phone: "", openingHours: "",
-  shippingFlat: 895, freeShippingThreshold: 10000, theme: "classic",
+  tradeInPercent: 50, shippingFlat: 895, freeShippingThreshold: 10000, theme: "classic",
 };
 export function validateStoreSettings(input: unknown): StoreSettings {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Send valid store settings.");
@@ -42,7 +43,9 @@ export function validateStoreSettings(input: unknown): StoreSettings {
   if (!cents(data.shippingFlat)) throw new Error("Shipping must be between $0 and $10,000 AUD, in whole cents.");
   if (data.freeShippingThreshold !== null && !cents(data.freeShippingThreshold)) throw new Error("Free shipping threshold must be between $0 and $10,000 AUD, or disabled.");
   if (typeof data.theme !== "string" || !Object.hasOwn(STORE_THEMES, data.theme)) throw new Error("Choose a supported store theme.");
-  return { ...(data.deliveryOptions === undefined ? {} : { deliveryOptions: validateDeliveryOptions(data.deliveryOptions) }), storeName, headerSlogan, sidebarSlogan, legalName, abn, email, address: text("address", 500), phone, openingHours: text("openingHours", 300), shippingFlat: data.shippingFlat as number, freeShippingThreshold: data.freeShippingThreshold as number | null, theme: data.theme as StoreTheme };
+  const tradeInPercent = data.tradeInPercent === undefined ? DEFAULT_STORE_SETTINGS.tradeInPercent : data.tradeInPercent;
+  if (typeof tradeInPercent !== "number" || !Number.isInteger(tradeInPercent) || tradeInPercent < 0 || tradeInPercent > 100) throw new Error("Trade-in percentage must be a whole number between 0 and 100.");
+  return { tradeInPercent, ...(data.deliveryOptions === undefined ? {} : { deliveryOptions: validateDeliveryOptions(data.deliveryOptions) }), storeName, headerSlogan, sidebarSlogan, legalName, abn, email, address: text("address", 500), phone, openingHours: text("openingHours", 300), shippingFlat: data.shippingFlat as number, freeShippingThreshold: data.freeShippingThreshold as number | null, theme: data.theme as StoreTheme };
 }
 export function shippingCost(subtotal: number, settings: Pick<StoreSettings, "shippingFlat" | "freeShippingThreshold" | "deliveryOptions">) {
   const option = enabledDeliveryOptions(settings)[0];

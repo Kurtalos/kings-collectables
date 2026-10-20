@@ -17,7 +17,7 @@ export async function saveStoreSettings(input: unknown) {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${KEY}))`);
     const current = await readStoreSettings(tx);
     const candidate = input as Record<string, unknown>;
-    const settings = validateStoreSettings({ ...candidate, ...(candidate?.deliveryOptions === undefined && current.deliveryOptions !== undefined ? { deliveryOptions: current.deliveryOptions } : {}) });
+    const settings = validateStoreSettings({ ...candidate, tradeInPercent: candidate?.tradeInPercent === undefined ? current.tradeInPercent : candidate.tradeInPercent, ...(candidate?.deliveryOptions === undefined && current.deliveryOptions !== undefined ? { deliveryOptions: current.deliveryOptions } : {}) });
     await tx.insert(storeMeta).values({ key: KEY, value: JSON.stringify(settings) }).onConflictDoUpdate({ target: storeMeta.key, set: { value: JSON.stringify(settings) } });
     return settings;
   });
