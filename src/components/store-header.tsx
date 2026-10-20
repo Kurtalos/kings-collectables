@@ -1,5 +1,5 @@
 "use client";
-import { useStoreSettings, usePageNavigation } from "./store-settings-provider";
+import { useStoreSettings, useBranding, usePageNavigation } from "./store-settings-provider";
 import { shippingMessage } from "@/lib/store-settings";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -11,7 +11,7 @@ import { money, type Card } from "@/lib/types";
 
 export function StoreHeader({ products, cartCount, wishlistCount, customerName, onCart, onWishlist, onAbout, initialQuery = "" }: { products: Card[]; cartCount: number; wishlistCount: number; customerName?: string; onCart: () => void; onWishlist: () => void; onAbout: () => void; initialQuery?: string }) {
   const router = useRouter(), path = usePathname();
-  const settings = useStoreSettings();
+  const settings = useStoreSettings(), branding = useBranding();
   const pageLinks = usePageNavigation().filter(page => page.inHeader);
   const [query, setQuery] = useState(initialQuery), [focused, setFocused] = useState(false), [setMenu, setSetMenu] = useState(false), [mobileNav, setMobileNav] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -85,7 +85,7 @@ export function StoreHeader({ products, cartCount, wishlistCount, customerName, 
   }
 
   return <>
-    <div className="announcement"><div className="container announcement-inner"><span className="announcement-origin"><span>🇦🇺</span> Independent & Australian</span><span className="announcement-message"><Sparkles size={13}/> <ThemeMotif theme={settings.theme}/> {settings.storeName}. {shippingMessage(settings)} <ArrowRight size={13}/></span><Link href="/admin" className="announcement-admin"><Settings2 size={12}/> Store dashboard <ArrowUpRight size={12}/></Link></div></div>
+    <div className="announcement"><div className="container announcement-inner"><span className="announcement-origin"><span>🇦🇺</span> Independent & Australian</span><span className="announcement-message"><Sparkles size={13}/> <ThemeMotif theme={branding.preset ?? settings.theme}/> {settings.storeName}. {shippingMessage(settings)} <ArrowRight size={13}/></span><Link href="/admin" className="announcement-admin"><Settings2 size={12}/> Store dashboard <ArrowUpRight size={12}/></Link></div></div>
     <header className="store-header"><div className="container header-main"><button className="mobile-menu icon-button" aria-label={mobileNav ? "Close navigation" : "Open navigation"} onClick={() => setMobileNav(!mobileNav)}>{mobileNav ? <X/> : <Menu/>}</button><Brand/>
       <div ref={searchRef} className="header-search">
         <form onSubmit={submit} className={`search-field ${focused ? "search-focused" : ""}`}>

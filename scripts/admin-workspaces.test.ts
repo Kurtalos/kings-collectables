@@ -6,7 +6,7 @@ import { parseCSV } from "../src/lib/csv";
 test("four admin sections own every tool once and defaults stay inside their section", () => {
   assert.deepEqual(ADMIN_SECTIONS.map(s => s.label), ["Store", "Inventory", "Customers", "Orders"]);
   const tabs = ADMIN_SECTIONS.flatMap(s => s.tabs);
-  assert.equal(new Set(tabs).size, 13); assert.equal(tabs.length, 13);
+  assert.equal(new Set(tabs).size, 14); assert.equal(tabs.length, 14);
   for (const section of ADMIN_SECTIONS) { assert.ok(section.tabs.includes(section.defaultTab)); for (const tab of section.tabs) assert.equal(adminSectionFor(tab).id, section.id); }
   assert.equal(adminSectionFor("picklist").id, "orders"); assert.equal(adminSectionFor("demand").id, "inventory");
 });

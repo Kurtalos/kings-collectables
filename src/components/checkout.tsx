@@ -108,7 +108,7 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
   if (!ready) return <main className="checkout-page"><div className="container checkout-loading"><LoaderCircle className="spin" size={26}/> Loading your cart…</div></main>;
 
   if (order) return <main className="checkout-page"><div className="container">
-    <header className="checkout-header"><Brand/><span className="checkout-secure"><Lock size={13}/> Secure checkout</span></header>
+    <header className="checkout-header"><Brand surface="light"/><span className="checkout-secure"><Lock size={13}/> Secure checkout</span></header>
     <div className="checkout-success-wrap">
       <div className="order-success checkout-success"><div className="success-icon"><PackageCheck size={37}/></div>
         <span className="eyebrow">{paid ? "PAID AND PACKING SOON" : "YOUR CARDS ARE RESERVED"}</span>
@@ -129,13 +129,13 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
   </div></main>;
 
   if (!cart.length) return <main className="checkout-page"><div className="container">
-    <header className="checkout-header"><Brand/><Link href="/cards" className="checkout-back-link"><ArrowLeft size={14}/> Back to the shop</Link></header>
+    <header className="checkout-header"><Brand surface="light"/><Link href="/cards" className="checkout-back-link"><ArrowLeft size={14}/> Back to the shop</Link></header>
     <div className="admin-panel checkout-empty"><EmptyState icon={<ShoppingBag size={34}/>} title="Your cart is empty" description="Add a few cards and they'll be waiting for you here. Your cart is saved on this device."><Link href="/cards" className="button button-primary">Browse singles <ArrowRight size={16}/></Link></EmptyState></div>
   </div></main>;
 
   return <main className="checkout-page">
     <div className="container">
-      <header className="checkout-header"><Brand/><Link href="/cards" className="checkout-back-link"><ArrowLeft size={14}/> Continue shopping</Link><span className="checkout-secure"><Lock size={13}/> Secure checkout</span></header>
+      <header className="checkout-header"><Brand surface="light"/><Link href="/cards" className="checkout-back-link"><ArrowLeft size={14}/> Continue shopping</Link><span className="checkout-secure"><Lock size={13}/> Secure checkout</span></header>
 
       <ol className="checkout-steps">{STEPS.map((entry, index) => <li key={entry.id}>
         <button className={index === stepIndex ? "current" : index < stepIndex ? "done" : ""} onClick={() => { if (index < stepIndex) { setStep(entry.id); setError(""); } }} disabled={index > stepIndex}>
