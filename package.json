@@ -20,7 +20,9 @@
     "test:carousel": "tsx --test scripts/homepage-carousel.test.ts",
     "test:carousel:browser": "tsx scripts/homepage-carousel-browser.test.ts",
     "test:pages": "tsx --test scripts/pages.test.ts",
-    "test:pages:browser": "tsx scripts/pages-browser.test.ts"
+    "test:pages:browser": "tsx scripts/pages-browser.test.ts",
+    "test:admin-workspaces": "tsx --test scripts/admin-workspaces.test.ts",
+    "test:admin-workspaces:browser": "tsx scripts/admin-workspaces-browser.test.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",

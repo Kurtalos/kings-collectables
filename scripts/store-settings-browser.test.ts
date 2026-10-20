@@ -61,6 +61,7 @@ async function main() {
     const page = await context.newPage(), errors: string[] = [];
     page.on("pageerror", e => errors.push(e.message));
     await page.goto(base + "/admin", { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Store", exact: true }).click();
     await page.getByRole("button", { name: "Store settings", exact: true }).click();
     await expect(page.getByLabel("Store name", { exact: true })).toHaveValue(custom.storeName);
     await page.getByRole("radio", { name: /Halloween/ }).check();
@@ -74,6 +75,7 @@ async function main() {
     await page.screenshot({ path: "artifacts/store-settings-mobile.png", fullPage: true, animations: "disabled" });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "Mobile overflow");
     await page.reload({ waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Store", exact: true }).click();
     await page.getByRole("button", { name: "Store settings", exact: true }).click();
     await expect(page.getByRole("radio", { name: /Halloween/ })).toBeChecked();
     await page.goto(base, { waitUntil: "networkidle" });

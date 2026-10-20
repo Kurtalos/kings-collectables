@@ -48,6 +48,7 @@ async function main() {
     const page = await context.newPage(), errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(base + "/admin", { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Store", exact: true }).click();
     await page.getByRole("button", { name: "Homepage carousel", exact: true }).click();
     await expect(page.getByLabel("Slide title", { exact: true })).toHaveValue("Carousel API test");
     await page.getByLabel("Slide title", { exact: true }).fill("GUI promotion\nMade by the owner");
@@ -73,6 +74,7 @@ async function main() {
     await page.screenshot({ path: "artifacts/carousel-editor-mobile.png", fullPage: true, animations: "disabled" });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Admin mobile overflow");
     await page.reload({ waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Store", exact: true }).click();
     await page.getByRole("button", { name: "Homepage carousel", exact: true }).click();
     await expect(page.locator(".carousel-slide-row").nth(1)).toContainText("GUI promotion");
     await page.goto(base, { waitUntil: "networkidle" });

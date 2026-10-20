@@ -368,6 +368,8 @@ async function main() {
       .getByRole("button", { name: "Close dialog" })
       .click();
 
+    await page.getByRole("button", { name: "Orders", exact: true }).click();
+    await page.getByRole("button", { name: "Picklist generator", exact: true }).click();
     const downloadPromise = page.waitForEvent("download");
     await page
       .getByRole("button", { name: "Export Picklist PDF", exact: true })
@@ -375,6 +377,7 @@ async function main() {
     const download = await downloadPromise;
     assert.match(download.suggestedFilename(), /kings-picklist/);
     assert.equal(await download.failure(), null);
+    await page.getByRole("button", { name: "Inventory", exact: true }).click();
     await page
       .getByRole("button", { name: "Receive stock", exact: true })
       .first()
@@ -510,7 +513,7 @@ async function main() {
     await page.setViewportSize({ width: 1600, height: 1100 });
     await page.evaluate(() => window.scrollTo(0, 0));
     await page
-      .getByRole("button", { name: /^Inventory/ })
+      .getByRole("button", { name: /^Card inventory/ })
       .first()
       .click();
     await page.getByLabel("Search inventory", { exact: true }).fill(name);

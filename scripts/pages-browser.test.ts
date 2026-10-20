@@ -61,7 +61,8 @@ async function main() {
     browser = await chromium.launch({ executablePath: await chromiumBinary.executablePath(), args: chromiumBinary.args, env: { ...process.env, LD_LIBRARY_PATH: `${resolve("artifacts/chromium-libs/lib")}:${process.env.LD_LIBRARY_PATH || ""}` }, headless: true });
     const context = await browser.newContext({ viewport: { width: 1550, height: 1100 } }); await context.addCookies((await owner.storageState()).cookies);
     const page = await context.newPage(), errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
-    await page.goto(base + "/admin", { waitUntil: "networkidle" }); await page.getByRole("button", { name: "Pages", exact: true }).click();
+    await page.goto(base + "/admin", { waitUntil: "networkidle" }); await page.getByRole("button", { name: "Store", exact: true }).click();
+    await page.getByRole("button", { name: "Pages", exact: true }).click();
     await expect(page.getByLabel("Choose page", { exact: true })).toBeVisible();
     await page.getByLabel("New page title", { exact: true }).fill(`GUI Page ${tag}`); await page.getByLabel("New URL slug", { exact: true }).fill(guiSlug); await page.getByRole("button", { name: "Create page", exact: true }).click();
     const rich = page.getByRole("textbox", { name: "Section rich text", exact: true });
