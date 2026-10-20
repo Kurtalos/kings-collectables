@@ -17,7 +17,7 @@ async function main() {
   const old = (await pool.query("SELECT value FROM store_meta WHERE key='store.settings.v1'")).rows[0];
   let browser;
   const tag = randomUUID().slice(0, 8);
-  const custom = { ...DEFAULT_STORE_SETTINGS, storeName: `Test Vault ${tag}`, legalName: "Test Business", abn: "51824753556", address: "123 Collector Street\nPerth WA 6000", email: "shop@example.invalid", phone: "+61 8 5555 0100", openingHours: "Mon–Fri, 9am–5pm", shippingFlat: 1200, freeShippingThreshold: 15000, theme: "christmas" };
+  const custom = { ...DEFAULT_STORE_SETTINGS, storeName: `Test Vault ${tag}`, legalName: "Test Business", abn: "51824753556", address: "123 Collector Street\nPerth WA 6000", email: "shop@example.invalid", phone: "+61 8 5555 0100", openingHours: "Mon–Fri, 9am–5pm", shippingFlat: 1200, freeShippingThreshold: 15000, theme: "christmas", headerSlogan: `Find your next favourite ${tag}`, sidebarSlogan: "Your collecting corner" };
   const json = async (r: Awaited<ReturnType<typeof owner.get>>) => { const data = await r.json() as { settings: StoreSettings; importId: string; order: { id: string; total: number } }; assert.ok(r.ok(), JSON.stringify(data)); return data; };
   try {
     assert.equal((await guest.get("/api/store-settings")).status(), 401);
@@ -27,7 +27,7 @@ async function main() {
     const pricing = (await pool.query("SELECT value FROM store_meta WHERE key='pricing.settings'")).rows;
     await json(await owner.put("/api/store-settings", { data: custom }));
     assert.equal((await json(await owner.get("/api/store-settings"))).settings.storeName, custom.storeName);
-    for (const patch of [{ theme: "evil" }, { shippingFlat: -1 }, { freeShippingThreshold: 1.5 }, { email: "bad" }, { storeName: "" }]) assert.equal((await owner.put("/api/store-settings", { data: { ...custom, ...patch } })).status(), 400);
+    for (const patch of [{ theme: "evil" }, { shippingFlat: -1 }, { freeShippingThreshold: 1.5 }, { email: "bad" }, { storeName: "" }, { headerSlogan: "x".repeat(161) }, { sidebarSlogan: "x".repeat(81) }, { headerSlogan: null }]) assert.equal((await owner.put("/api/store-settings", { data: { ...custom, ...patch } })).status(), 400);
     assert.deepEqual((await pool.query("SELECT value FROM store_meta WHERE key='pricing.settings'")).rows, pricing);
     const home = await guest.get("/");
     assert.equal(home.status(), 200);
@@ -64,20 +64,50 @@ async function main() {
     await page.getByRole("button", { name: "Store", exact: true }).click();
     await page.getByRole("button", { name: "Store settings", exact: true }).click();
     await expect(page.getByLabel("Store name", { exact: true })).toHaveValue(custom.storeName);
+    await expect(page.getByLabel("Header slogan", { exact: true })).toHaveValue(custom.headerSlogan);
+    await expect(page.getByLabel("Sidebar slogan", { exact: true })).toHaveValue(custom.sidebarSlogan);
+    const header = await page.locator(".admin-topbar").boundingBox(), bar = await page.getByRole("navigation", { name: "Admin sections", exact: true }).boundingBox(), tools = await page.locator(".admin-subnavigation").boundingBox();
+    assert.ok(header && bar && tools && bar.y >= header.y+header.height-1 && tools.x < bar.x, "Sections below banner, tools in left sidebar");
+    const storeButton = await page.getByRole("button", { name: "Store", exact: true }).boundingBox(), ordersButton = await page.getByRole("button", { name: "Orders", exact: true }).boundingBox();
+    assert.ok(storeButton && ordersButton && Math.abs(storeButton.y-ordersButton.y)<1 && storeButton.x<ordersButton.x, "Horizontal section buttons");
+    await page.getByLabel("Header slogan", { exact: true }).fill("Collect <great> memories.");
+    await page.getByLabel("Sidebar slogan", { exact: true }).fill("Your independent card shop");
+    await expect(page.locator(".admin-header-slogan")).toHaveText(custom.headerSlogan);
+    await expect(page.locator(".admin-sidebar-slogan")).toHaveText(custom.sidebarSlogan);
     await page.getByRole("radio", { name: /Halloween/ }).check();
     assert.equal(await page.locator("html").getAttribute("data-store-theme"), "christmas");
     await expect(page.locator(".settings-preview")).toContainText("HALLOWEEN");
     await page.getByRole("button", { name: "Save store settings", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("Store settings saved");
     await expect(page.locator("html")).toHaveAttribute("data-store-theme", "halloween");
+    await expect(page.locator(".admin-header-slogan")).toHaveText("Collect <great> memories.");
+    await expect(page.locator(".admin-sidebar-slogan")).toHaveText("Your independent card shop");
+    await expect(page.locator(".admin-header-slogan great")).toHaveCount(0);
     await page.screenshot({ path: "artifacts/store-settings-desktop.png", fullPage: true, animations: "disabled" });
     await page.setViewportSize({ width: 390, height: 844 });
+    const mobileBar = await page.locator(".admin-workspace-bar").boundingBox(), mobileTools = await page.locator(".admin-subnavigation").boundingBox();
+    assert.ok(mobileBar && mobileTools && mobileTools.y >= mobileBar.y+mobileBar.height-1, "Mobile tools follow section bar");
     await page.screenshot({ path: "artifacts/store-settings-mobile.png", fullPage: true, animations: "disabled" });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "Mobile overflow");
     await page.reload({ waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Store", exact: true }).click();
     await page.getByRole("button", { name: "Store settings", exact: true }).click();
     await expect(page.getByRole("radio", { name: /Halloween/ })).toBeChecked();
+    await expect(page.getByLabel("Header slogan", { exact: true })).toHaveValue("Collect <great> memories.");
+    await expect(page.getByLabel("Sidebar slogan", { exact: true })).toHaveValue("Your independent card shop");
+    await page.getByLabel("Header slogan", { exact: true }).fill("");
+    await page.getByLabel("Sidebar slogan", { exact: true }).fill("");
+    await page.getByRole("button", { name: "Save store settings", exact: true }).click();
+    await expect(page.locator(".admin-header-slogan")).toHaveCount(0);
+    await expect(page.locator(".admin-sidebar-slogan")).toHaveCount(0);
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.locator(".admin-header-slogan")).toHaveCount(0);
+    await expect(page.locator(".admin-sidebar-slogan")).toHaveCount(0);
+    await json(await owner.put("/api/store-settings", { data: { ...custom, theme: "halloween", headerSlogan: "W".repeat(160), sidebarSlogan: "W".repeat(80) } }));
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.locator(".admin-header-slogan")).toHaveText("W".repeat(160));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth), "Maximum-length slogans do not overflow mobile");
+    await json(await owner.put("/api/store-settings", { data: { ...custom, theme: "halloween", headerSlogan: "", sidebarSlogan: "" } }));
     await page.goto(base, { waitUntil: "networkidle" });
     await expect(page.locator(".announcement-message")).toContainText("$150+");
     await expect(page.locator(".footer-brand")).toContainText(custom.abn);
@@ -100,7 +130,7 @@ async function main() {
       assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--wine").trim()), colors.accent);
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: owner/CSRF protection; validated persistent settings; pricing and acquisition costs unchanged; authoritative shipping, disabled/zero thresholds, stale quotes rejected, existing orders preserved; theme preview/save/reload; public business details; checkout totals; desktop/mobile without overflow or browser errors.");
+    console.log("PASS: horizontal section bar and sidebar tools, mobile order; slogans save/reload/hide, plain text and maximum length; owner/CSRF protection; validated persistent settings; pricing and acquisition costs unchanged; authoritative shipping, disabled/zero thresholds, stale quotes rejected, existing orders preserved; theme preview/save/reload; public business details; checkout totals; desktop/mobile without overflow or browser errors.");
   } finally {
     await browser?.close();
     // Restore only this test's settings key, never reset application data.

@@ -8,12 +8,12 @@ export const STORE_THEMES = {
 } as const;
 export type StoreTheme = keyof typeof STORE_THEMES;
 export type StoreSettings = {
-  storeName: string; legalName: string; abn: string; address: string;
+  storeName: string; headerSlogan: string; sidebarSlogan: string; legalName: string; abn: string; address: string;
   email: string; phone: string; openingHours: string;
   shippingFlat: number; freeShippingThreshold: number | null; theme: StoreTheme;
 };
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
-  storeName: "Kings Collectables", legalName: "", abn: "", address: "", email: "", phone: "", openingHours: "",
+  storeName: "Kings Collectables", headerSlogan: "A little more independent. A lot more you.", sidebarSlogan: "Your independent store", legalName: "", abn: "", address: "", email: "", phone: "", openingHours: "",
   shippingFlat: 895, freeShippingThreshold: 10000, theme: "classic",
 };
 export function validateStoreSettings(input: unknown): StoreSettings {
@@ -25,6 +25,10 @@ export function validateStoreSettings(input: unknown): StoreSettings {
     if ((required && !value) || value.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)) throw new Error(`Check ${key} (maximum ${max} characters).`);
     return value;
   };
+  // Older saved settings and older clients have no slogans. Keep their defaults;
+  // an explicit empty string hides a slogan. Validate all supplied values as text.
+  const slogan = (key: "headerSlogan" | "sidebarSlogan", max: number) => data[key] === undefined ? DEFAULT_STORE_SETTINGS[key] : text(key, max);
+  const headerSlogan = slogan("headerSlogan", 160), sidebarSlogan = slogan("sidebarSlogan", 80);
   const storeName = text("storeName", 80, true), legalName = text("legalName", 160);
   const abn = text("abn", 20).replace(/\s/g, "");
   if (abn && !/^\d{11}$/.test(abn)) throw new Error("ABN must contain 11 digits, or be left blank.");
@@ -36,7 +40,7 @@ export function validateStoreSettings(input: unknown): StoreSettings {
   if (!cents(data.shippingFlat)) throw new Error("Shipping must be between $0 and $10,000 AUD, in whole cents.");
   if (data.freeShippingThreshold !== null && !cents(data.freeShippingThreshold)) throw new Error("Free shipping threshold must be between $0 and $10,000 AUD, or disabled.");
   if (typeof data.theme !== "string" || !Object.hasOwn(STORE_THEMES, data.theme)) throw new Error("Choose a supported store theme.");
-  return { storeName, legalName, abn, email, address: text("address", 500), phone, openingHours: text("openingHours", 300), shippingFlat: data.shippingFlat as number, freeShippingThreshold: data.freeShippingThreshold as number | null, theme: data.theme as StoreTheme };
+  return { storeName, headerSlogan, sidebarSlogan, legalName, abn, email, address: text("address", 500), phone, openingHours: text("openingHours", 300), shippingFlat: data.shippingFlat as number, freeShippingThreshold: data.freeShippingThreshold as number | null, theme: data.theme as StoreTheme };
 }
 export function shippingCost(subtotal: number, settings: Pick<StoreSettings, "shippingFlat" | "freeShippingThreshold">) {
   return settings.freeShippingThreshold !== null && subtotal >= settings.freeShippingThreshold ? 0 : settings.shippingFlat;

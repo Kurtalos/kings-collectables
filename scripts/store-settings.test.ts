@@ -23,3 +23,13 @@ test("settings trim public fields and validate cents, ABN, email and allowlisted
     assert.match(themeVariables(settings.theme)["--wine"], /^#[a-f0-9]{6}$/);
   }
 });
+
+test("admin slogans support old settings, blanks and bounded plain text", () => {
+  const { headerSlogan: _header, sidebarSlogan: _sidebar, ...legacy } = defaults;
+  assert.equal(validateStoreSettings(legacy).headerSlogan, defaults.headerSlogan);
+  assert.equal(validateStoreSettings(legacy).sidebarSlogan, defaults.sidebarSlogan);
+  assert.equal(validateStoreSettings({ ...defaults, headerSlogan: "  Collect your way.  " }).headerSlogan, "Collect your way.");
+  assert.equal(validateStoreSettings({ ...defaults, headerSlogan: "", sidebarSlogan: "" }).headerSlogan, "");
+  assert.equal(validateStoreSettings({ ...defaults, headerSlogan: "", sidebarSlogan: "" }).sidebarSlogan, "");
+  for (const patch of [{ headerSlogan: "x".repeat(161) }, { sidebarSlogan: "x".repeat(81) }, { headerSlogan: null }, { sidebarSlogan: 42 }, { headerSlogan: "bad\u0000text" }]) assert.throws(() => validateStoreSettings({ ...defaults, ...patch }));
+});
