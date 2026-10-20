@@ -26,7 +26,9 @@
     "test:branding": "tsx --test scripts/branding.test.ts",
     "test:branding:browser": "tsx scripts/branding-browser.test.ts",
     "test:delivery": "tsx --test scripts/delivery.test.ts",
-    "test:delivery:browser": "tsx scripts/delivery-browser.test.ts"
+    "test:delivery:browser": "tsx scripts/delivery-browser.test.ts",
+    "test:site-chrome": "tsx --test scripts/site-chrome.test.ts",
+    "test:site-chrome:browser": "tsx scripts/site-chrome-browser.test.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",

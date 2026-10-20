@@ -1,3 +1,4 @@
+import { getPublishedChrome } from "@/lib/site-chrome-server";
 import { getPageNavigation } from "@/lib/pages-server";
 import { getHomepageCarousel } from "@/lib/homepage-carousel-server";
 import type { Metadata } from "next";
@@ -19,10 +20,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const [settings, slides, pageNavigation, branding] = await Promise.all([getStoreSettings(), getHomepageCarousel(), getPageNavigation(), getBranding()]);
+  const [settings, slides, pageNavigation, branding, chrome] = await Promise.all([getStoreSettings(), getHomepageCarousel(), getPageNavigation(), getBranding(), getPublishedChrome()]);
   return (
     <html lang="en" data-store-theme={branding.settings.preset ?? settings.theme} data-custom-colors={branding.settings.customColors ? "true" : undefined} style={brandingVariables(branding.settings, settings.theme) as CSSProperties}>
-      <body><StoreSettingsProvider settings={settings} branding={branding.settings} pageNavigation={pageNavigation} slides={slides.filter(slide => slide.enabled)}>{children}</StoreSettingsProvider></body>
+      <body><StoreSettingsProvider chrome={chrome} settings={settings} branding={branding.settings} pageNavigation={pageNavigation} slides={slides.filter(slide => slide.enabled)}>{children}</StoreSettingsProvider></body>
     </html>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
-import { useStoreSettings, useBranding, usePageNavigation } from "./store-settings-provider";
+import { useStoreSettings, useBranding, usePageNavigation, useSiteChrome } from "./store-settings-provider";
+import { RichContent } from "./page-blocks";
+import { chromeTokens } from "@/lib/site-chrome";
 import { shippingMessage } from "@/lib/store-settings";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -11,8 +13,8 @@ import { money, type Card } from "@/lib/types";
 
 export function StoreHeader({ products, cartCount, wishlistCount, customerName, onCart, onWishlist, onAbout, initialQuery = "" }: { products: Card[]; cartCount: number; wishlistCount: number; customerName?: string; onCart: () => void; onWishlist: () => void; onAbout: () => void; initialQuery?: string }) {
   const router = useRouter(), path = usePathname();
-  const settings = useStoreSettings(), branding = useBranding();
-  const pageLinks = usePageNavigation().filter(page => page.inHeader);
+  const settings = useStoreSettings(), branding = useBranding(), chrome = useSiteChrome();
+  const pageLinks = usePageNavigation().filter(page => page.inHeader && !chrome.headerLinks.some(l=>l.href===`/pages/${page.slug}`));
   const [query, setQuery] = useState(initialQuery), [focused, setFocused] = useState(false), [setMenu, setSetMenu] = useState(false), [mobileNav, setMobileNav] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
@@ -25,8 +27,9 @@ export function StoreHeader({ products, cartCount, wishlistCount, customerName, 
       if (!menuRef.current?.contains(event.target as Node)) setSetMenu(false); 
       if (!searchRef.current?.contains(event.target as Node)) setFocused(false); 
     }
-    document.addEventListener("mousedown", outside); 
-    return () => document.removeEventListener("mousedown", outside);
+    const doc = searchRef.current?.ownerDocument || document;
+    doc.addEventListener("mousedown", outside);
+    return () => doc.removeEventListener("mousedown", outside);
   }, []);
 
   // Live database search across all 110,000+ cards
@@ -85,14 +88,14 @@ export function StoreHeader({ products, cartCount, wishlistCount, customerName, 
   }
 
   return <>
-    <div className="announcement"><div className="container announcement-inner"><span className="announcement-origin"><span>🇦🇺</span> Independent & Australian</span><span className="announcement-message"><Sparkles size={13}/> <ThemeMotif theme={branding.preset ?? settings.theme}/> {settings.storeName}. {shippingMessage(settings)} <ArrowRight size={13}/></span><Link href="/admin" className="announcement-admin"><Settings2 size={12}/> Store dashboard <ArrowUpRight size={12}/></Link></div></div>
+    {chrome.announcementMode!=="hidden" && <div className="announcement"><div className="container announcement-inner"><span className="announcement-origin">{chrome.origin}</span><div className="announcement-message"><Sparkles size={13}/>{chrome.announcementMode==="automatic" ? <><ThemeMotif theme={branding.preset ?? settings.theme}/>{settings.storeName}. {shippingMessage(settings)} <ArrowRight size={13}/></> : <RichContent doc={chromeTokens(chrome.announcement,settings.storeName,new Date().getFullYear())}/>}</div><Link href="/admin" className="announcement-admin"><Settings2 size={12}/>{chrome.dashboardLabel}<ArrowUpRight size={12}/></Link></div></div>}
     <header className="store-header"><div className="container header-main"><button className="mobile-menu icon-button" aria-label={mobileNav ? "Close navigation" : "Open navigation"} onClick={() => setMobileNav(!mobileNav)}>{mobileNav ? <X/> : <Menu/>}</button><Brand/>
       <div ref={searchRef} className="header-search">
         <form onSubmit={submit} className={`search-field ${focused ? "search-focused" : ""}`}>
           <Search size={19}/>
           <input 
             aria-label="Search cards, sets, and more" 
-            placeholder="Search any Magic card, set, printing…" 
+            placeholder={chrome.searchPlaceholder}
             value={query} 
             onChange={event => { setQuery(event.target.value); setFocused(true); }} 
             onFocus={() => setFocused(true)} 
@@ -163,6 +166,10 @@ export function StoreHeader({ products, cartCount, wishlistCount, customerName, 
         </button>
       </div>
     </div></header>
-    <nav className={`store-nav ${mobileNav ? "nav-open" : ""}`} aria-label="Main navigation"><div className="container nav-inner"><Link href="/cards" className={`nav-link nav-featured ${path === "/cards" ? "nav-active" : ""}`} onClick={() => setMobileNav(false)}><Flame size={17}/> Shop all singles</Link><div ref={menuRef} className="set-nav-wrap"><button className={`nav-link ${setMenu ? "nav-active" : ""}`} onClick={() => setSetMenu(!setMenu)} aria-expanded={setMenu}>Shop by set <ChevronDown size={13}/></button>{setMenu && <div className="set-dropdown"><span className="suggestion-label">EXPLORE THE MULTIVERSE</span>{SHOP_SETS.map(set => <Link key={set.code} href={`/cards?set=${set.code}`} onClick={() => { setSetMenu(false); setMobileNav(false); }}><img src={set.image} alt=""/><span><strong>{set.name}</strong><small>{set.subtitle}</small></span><ArrowUpRight size={16}/></Link>)}<Link href="/cards" className="dropdown-all" onClick={() => setSetMenu(false)}>Browse every set <ArrowRight size={15}/></Link></div>}</div><Link className="nav-link" href="/cards?category=commander-staples" onClick={() => setMobileNav(false)}>Commander staples</Link><Link className="nav-link" href="/cards?category=new-arrivals" onClick={() => setMobileNav(false)}>New arrivals <span className="tiny-dot"/></Link><Link className={`nav-link nav-featured ${path === "/deckbuilder" ? "nav-active" : ""}`} href="/deckbuilder" onClick={() => setMobileNav(false)}><Wand2 size={17}/> Deck builder</Link><Link className={`nav-link ${path === "/account" ? "nav-active" : ""}`} href="/account" onClick={() => setMobileNav(false)}>My account</Link><button className="nav-link" onClick={() => { onAbout(); setMobileNav(false); }}>Our story</button>{pageLinks.length > 0 && <details className="page-nav-menu"><summary className="nav-link">More pages <ChevronDown size={13}/></summary><div>{pageLinks.map(page => <Link key={page.slug} href={`/pages/${page.slug}`} onClick={() => setMobileNav(false)}>{page.title}</Link>)}</div></details>}<span className="nav-end"><span className="tiny-diamond">♔</span> Collect with confidence.</span></div></nav>
+    <nav className={`store-nav ${mobileNav ? "nav-open" : ""}`} aria-label="Main navigation"><div className="container nav-inner">
+      {chrome.headerLinks.filter(l=>l.enabled).map(item=>item.kind==="sets" ? <div key={item.id} ref={menuRef} className="set-nav-wrap"><button className={`nav-link ${setMenu ? "nav-active" : ""}`} onClick={()=>setSetMenu(!setMenu)} aria-expanded={setMenu}>{item.label}<ChevronDown size={13}/></button>{setMenu && <div className="set-dropdown"><span className="suggestion-label">{chrome.setHeading}</span>{chrome.setLinks.filter(l=>l.enabled).map(l=>{const set=SHOP_SETS.find(s=>s.code===l.id);return <Link key={l.id} href={l.href} onClick={()=>{setSetMenu(false);setMobileNav(false);}}>{set && <img src={set.image} alt=""/>}<span><strong>{l.label}</strong>{set && <small>{set.subtitle}</small>}</span><ArrowUpRight size={16}/></Link>;})}</div>}</div> : item.kind==="story" ? <button key={item.id} className="nav-link" onClick={()=>{onAbout();setMobileNav(false);}}>{item.label}</button> : <Link key={item.id} href={item.href} className={`nav-link ${["singles","deck"].includes(item.id) ? "nav-featured":""} ${path===item.href ? "nav-active":""}`} onClick={()=>setMobileNav(false)}>{item.id==="singles" && <Flame size={17}/ >}{item.id==="deck" && <Wand2 size={17}/ >}{item.label}{item.id==="new" && <span className="tiny-dot"/>}</Link>)}
+      {chrome.headerPages && pageLinks.length>0 && <details className="page-nav-menu"><summary className="nav-link">More pages <ChevronDown size={13}/></summary><div>{pageLinks.map(page=><Link key={page.slug} href={`/pages/${page.slug}`} onClick={()=>setMobileNav(false)}>{page.title}</Link>)}</div></details>}
+      {chrome.navTagline && <span className="nav-end"><span className="tiny-diamond">♔</span>{chrome.navTagline}</span>}
+    </div></nav>
   </>;
 }
