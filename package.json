@@ -24,7 +24,9 @@
     "test:admin-workspaces": "tsx --test scripts/admin-workspaces.test.ts",
     "test:admin-workspaces:browser": "tsx scripts/admin-workspaces-browser.test.ts",
     "test:branding": "tsx --test scripts/branding.test.ts",
-    "test:branding:browser": "tsx scripts/branding-browser.test.ts"
+    "test:branding:browser": "tsx scripts/branding-browser.test.ts",
+    "test:delivery": "tsx --test scripts/delivery.test.ts",
+    "test:delivery:browser": "tsx scripts/delivery-browser.test.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",

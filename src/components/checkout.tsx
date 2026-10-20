@@ -1,6 +1,6 @@
 "use client";
 import { useStoreSettings } from "./store-settings-provider";
-import { shippingCost } from "@/lib/store-settings";
+import { enabledDeliveryOptions, deliveryCost, deliveryQuote, type DeliverySnapshot } from "@/lib/delivery";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -17,15 +17,17 @@ const STEPS: { id: Step; label: string; hint: string }[] = [
   { id: "delivery", label: "Delivery", hint: "Where it's going" },
   { id: "payment", label: "Payment", hint: "How you'll pay" },
 ];
-type PlacedOrder = { id: string; orderNumber: string; total: number; status: string };
+type PlacedOrder = { id: string; orderNumber: string; total: number; status: string; delivery?: DeliverySnapshot };
 const BLANK: AddressFields = { label: "Home", recipientName: "", line1: "", line2: "", suburb: "", state: "VIC", postcode: "", phone: "" };
 
 export function Checkout({ initialProducts, customer, addresses: initialAddresses, cardAvailable, publishableKey }: {
   initialProducts: Card[]; customer: Customer | null; addresses: SavedAddress[]; cardAvailable: boolean; publishableKey: string;
 }) {
   const settings = useStoreSettings();
-  const FREE_SHIPPING_THRESHOLD = settings.freeShippingThreshold;
-  const SHIPPING_FLAT = settings.shippingFlat;
+  const availableDelivery = enabledDeliveryOptions(settings);
+  const [deliveryId, setDeliveryId] = useState(availableDelivery[0]?.id ?? "");
+  const deliveryOption = availableDelivery.find(option=>option.id===deliveryId);
+  const FREE_SHIPPING_THRESHOLD = deliveryOption?.freeAbove ?? null;
   const router = useRouter();
   const [cart, setCart] = useState<CartLine[]>([]), [ready, setReady] = useState(false);
   const [step, setStep] = useState<Step>("details"), [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -55,11 +57,12 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
   useEffect(() => { if (!ready) return; try { localStorage.setItem("kings-cart", JSON.stringify(cart.map(line => ({ id: line.product.id, quantity: line.quantity })))); } catch { /* Checkout still works without browser storage. */ } }, [cart, ready]);
 
   const subtotal = useMemo(() => cart.reduce((sum, line) => sum + line.product.price * line.quantity, 0), [cart]);
-  const shipping = shippingCost(subtotal, settings);
+  const shipping = deliveryOption ? deliveryCost(subtotal, deliveryOption) : 0;
   const total = subtotal + shipping;
   const units = cart.reduce((sum, line) => sum + line.quantity, 0);
   const selected = addresses.find(address => address.id === selectedId) || null;
-  const deliveryReady = addressMode === "saved" ? Boolean(selected) : draft.recipientName.trim().length >= 2 && draft.line1.trim().length >= 4 && draft.suburb.trim().length >= 2 && /^\d{4}$/.test(draft.postcode.trim()) && (AU_STATES as readonly string[]).includes(draft.state);
+  const addressReady = addressMode === "saved" ? Boolean(selected) : draft.recipientName.trim().length >= 2 && draft.line1.trim().length >= 4 && draft.suburb.trim().length >= 2 && /^\d{4}$/.test(draft.postcode.trim()) && (AU_STATES as readonly string[]).includes(draft.state);
+  const deliveryReady = addressReady && !!deliveryOption;
   const detailsReady = details.name.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email.trim());
   const stepIndex = STEPS.findIndex(entry => entry.id === step);
 
@@ -93,8 +96,9 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
   async function placeOrder() {
     setBusy(true); setError("");
     try {
+      if (!deliveryOption || !deliveryReady || !detailsReady) throw new Error("Check your contact, delivery address and delivery option.");
       const payload: Record<string, unknown> = {
-        customerName: details.name.trim(), email: details.email.trim(), expectedShipping: shipping,
+        customerName: details.name.trim(), email: details.email.trim(), expectedShipping: shipping, deliveryOptionId: deliveryOption.id, expectedDeliveryQuote: deliveryQuote(deliveryOption, subtotal),
         items: cart.map(line => ({ productId: line.product.id, quantity: line.quantity })),
       };
       if (addressMode === "saved" && selected) payload.addressId = selected.id;
@@ -114,7 +118,7 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
         <span className="eyebrow">{paid ? "PAID AND PACKING SOON" : "YOUR CARDS ARE RESERVED"}</span>
         <h2>{paid ? "Payment received." : "Great cards. Great choice."}</h2>
         <p>{paid ? "We're getting your cards ready. A receipt is on its way to " : "We've reserved your cards. "}{details.email}{paid ? "." : " — choose how you'd like to pay below."}</p>
-        <div className="order-confirmation"><span>Order number</span><strong>{order.orderNumber}</strong><span>Total including shipping</span><strong>{money(order.total)} AUD</strong><span className={`status-pill ${paid ? "paid-pill" : ""}`}>{paid ? "Paid" : "Awaiting payment"}</span></div>
+        <div className="order-confirmation"><span>Order number</span><strong>{order.orderNumber}</strong><span>Delivery service</span><strong>{order.delivery?.name ?? "Delivery"}</strong><span>Total including shipping</span><strong>{money(order.total)} AUD</strong><span className={`status-pill ${paid ? "paid-pill" : ""}`}>{paid ? "Paid" : "Awaiting payment"}</span></div>
         <div className="checkout-success-address"><MapPin size={17}/><div><span>Delivering to</span><p>{addressMode === "saved" && selected ? `${selected.recipientName}\n${describeAddress(selected)}` : `${draft.recipientName}\n${describeAddress(draft)}`}</p></div></div>
         {paid ? <div className="checkout-success-actions"><Link href={customer ? "/account" : "/cards"} className="button button-primary">{customer ? "View your orders" : "Keep exploring"} <ArrowRight size={16}/></Link><button className="button button-outline" onClick={() => window.print()}>Print receipt</button></div>
           : paymentMethod === "card" && cardAvailable && customer ? <div className="checkout-pay-now"><StripePaymentForm publishableKey={publishableKey} order={order} onPaid={() => { setPaid(true); router.refresh(); }} onError={setError}/></div>
@@ -178,7 +182,8 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
                 {customer && <label className="checkout-checkbox"><input type="checkbox" checked={saveAddress} onChange={event => setSaveAddress(event.target.checked)}/><span><strong>{editing ? "Update this saved address" : "Save this address for next time"}</strong><small>You can manage saved addresses any time in your account.</small></span></label>}
                 <div className="checkout-address-actions">{editing && <button className="button button-outline" onClick={() => { setEditing(null); setDraft(BLANK); setAddressMode(addresses.length ? "saved" : "new"); }}>Cancel edit</button>}<button className="button button-primary" disabled={busy || !deliveryReady} onClick={saveDraftAddress}>{busy ? <LoaderCircle className="spin" size={15}/> : <Check size={15}/>} {editing ? "Update address" : "Save & use this address"}</button></div>
               </div>}
-            <div className="checkout-shipping-note"><Truck size={16}/><span>Tracked delivery across Australia. {shipping === 0 ? "You've unlocked free shipping on this order." : FREE_SHIPPING_THRESHOLD !== null ? `${money(FREE_SHIPPING_THRESHOLD - subtotal)} more for free shipping.` : `Flat shipping ${money(SHIPPING_FLAT)}.`}</span></div>
+            <fieldset className="checkout-delivery-options"><legend>Choose delivery</legend>{availableDelivery.length ? availableDelivery.map(option=><label key={option.id} className={`checkout-delivery-option ${deliveryId===option.id ? "selected" : ""}`}><input type="radio" name="delivery-option" value={option.id} checked={deliveryId===option.id} onChange={()=>setDeliveryId(option.id)}/><span><strong>{option.name}</strong>{option.description && <small>{option.description}</small>}{option.freeAbove!==null && option.price>0 && <small>Free on orders of {money(option.freeAbove)} or more</small>}</span><b>{deliveryCost(subtotal,option)===0 ? "Free":money(deliveryCost(subtotal,option))}</b></label>):<p role="alert">Delivery is currently unavailable. Please contact the store before ordering.</p>}</fieldset>
+            {deliveryOption && <div className="checkout-shipping-note"><Truck size={16}/><span>{deliveryOption.name}. {shipping===0 ? "No delivery charge for this option.":FREE_SHIPPING_THRESHOLD!==null ? `${money(Math.max(0,FREE_SHIPPING_THRESHOLD-subtotal))} more for free delivery with this option.`:`Delivery ${money(shipping)}.`}</span></div>}
             <div className="checkout-actions"><button className="button button-ghost" onClick={() => setStep("details")}><ArrowLeft size={15}/> Back</button><span className="checkout-step-count">Step 2 of 3</span><button className="button button-primary" disabled={!deliveryReady} onClick={() => { setStep("payment"); setError(""); }}>Continue to payment <ArrowRight size={16}/></button></div>
           </section>}
 
@@ -200,13 +205,13 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
               <div className="checkout-review-grid">
                 <div><span>Contact</span><strong>{details.name}</strong><small>{details.email}</small></div>
                 <div><span>Delivering to</span><strong>{addressMode === "saved" && selected ? selected.recipientName : draft.recipientName}</strong><small>{addressMode === "saved" && selected ? describeAddress(selected) : describeAddress(draft)}</small></div>
-                <div><span>Cards</span><strong>{units} across {cart.length} {cart.length === 1 ? "line" : "lines"}</strong><small>{shipping === 0 ? "Free tracked shipping" : `Tracked shipping ${money(SHIPPING_FLAT)}`}</small></div>
+                <div><span>Cards</span><strong>{units} across {cart.length} {cart.length === 1 ? "line" : "lines"}</strong><small>{deliveryOption ? `${deliveryOption.name} · ${shipping === 0 ? "Free" : money(shipping)}` : "Choose delivery"}</small></div>
                 <div><span>Total</span><strong className="checkout-review-total">{money(total)}</strong><small>AUD, including shipping</small></div>
               </div>
               <div className="checkout-review-actions"><button className="checkout-edit-link" onClick={() => setStep("details")}><Pencil size={12}/> Edit details</button><button className="checkout-edit-link" onClick={() => setStep("delivery")}><Pencil size={12}/> Edit delivery</button></div>
             </div>
             {error && <p className="form-error" role="alert"><AlertCircle size={14}/>{error}</p>}
-            <div className="checkout-actions"><button className="button button-ghost" onClick={() => setStep("delivery")}><ArrowLeft size={15}/> Back</button><span className="checkout-step-count">Step 3 of 3</span><button className="button button-primary checkout-place" disabled={busy} onClick={placeOrder}>{busy ? <LoaderCircle className="spin" size={17}/> : <Lock size={16}/>} {busy ? "Reserving your cards…" : `Place order · ${money(total)}`}</button></div>
+            <div className="checkout-actions"><button className="button button-ghost" onClick={() => setStep("delivery")}><ArrowLeft size={15}/> Back</button><span className="checkout-step-count">Step 3 of 3</span><button className="button button-primary checkout-place" disabled={busy || !deliveryReady || !detailsReady} onClick={placeOrder}>{busy ? <LoaderCircle className="spin" size={17}/> : <Lock size={16}/>} {busy ? "Reserving your cards…" : `Place order · ${money(total)}`}</button></div>
           </section>}
         </div>
 
@@ -217,8 +222,8 @@ export function Checkout({ initialProducts, customer, addresses: initialAddresse
             <div><strong>{line.product.name}</strong><small>{line.product.condition} · {line.product.finish}</small>
               <div className="checkout-line-controls"><button onClick={() => adjust(line.product.id, -1)} aria-label={`Decrease ${line.product.name}`}><Minus size={11}/></button><span>{line.quantity}</span><button onClick={() => adjust(line.product.id, 1)} disabled={line.quantity >= line.product.quantity} aria-label={`Increase ${line.product.name}`}><Plus size={11}/></button><button className="checkout-line-remove" onClick={() => adjust(line.product.id, -line.quantity)} aria-label={`Remove ${line.product.name}`}><X size={11}/></button></div>
             </div><b>{money(line.product.price * line.quantity)}</b></div>)}</div>
-          <div className="checkout-summary-totals"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>Tracked shipping</span><strong>{shipping ? money(shipping) : <em>Free</em>}</strong></div>{shipping > 0 && FREE_SHIPPING_THRESHOLD !== null && <small className="checkout-progress-hint">{money((FREE_SHIPPING_THRESHOLD ?? 0) - subtotal)} more for free shipping</small>}<div className="checkout-summary-total"><span>Total</span><strong>{money(total)} <i>AUD</i></strong></div></div>
-          <div className="checkout-trust"><span><ShieldCheck size={13}/> Condition graded honestly</span><span><Truck size={13}/> Tracked Australia-wide</span><span><Lock size={13}/> We never store card details</span></div>
+          <div className="checkout-summary-totals"><div><span>Subtotal</span><strong>{money(subtotal)}</strong></div><div><span>{deliveryOption?.name ?? "Delivery"}</span><strong>{!deliveryOption ? "Unavailable" : shipping ? money(shipping) : <em>Free</em>}</strong></div>{shipping > 0 && FREE_SHIPPING_THRESHOLD !== null && <small className="checkout-progress-hint">{money((FREE_SHIPPING_THRESHOLD ?? 0) - subtotal)} more for free shipping</small>}<div className="checkout-summary-total"><span>Total</span><strong>{money(total)} <i>AUD</i></strong></div></div>
+          <div className="checkout-trust"><span><ShieldCheck size={13}/> Condition graded honestly</span><span><Truck size={13}/> Australian delivery options</span><span><Lock size={13}/> We never store card details</span></div>
         </aside>
       </div>
     </div>

@@ -39,6 +39,7 @@ export type AccountData = {
   watchProducts: Card[];
 };
 export type StoreOrder = {
+  delivery?: import("./delivery").DeliverySnapshot | null;
   id: string; orderNumber: string; customerId: string | null; customerName: string; email: string; shippingAddress: string;
   status: string; paymentMethod: string | null; paymentReceipt: string | null; paidAt: string | null;
   channel: string; addressId: string | null; recipientPhone: string | null; discount: number; note: string | null;

@@ -1,3 +1,4 @@
+import { enabledDeliveryOptions, deliveryCost, validateDeliveryOptions, type DeliveryOption } from "./delivery";
 export const STORE_THEMES = {
   classic: { name: "Kings classic", description: "Black, orange & gold", accent: "#f26b0a", hover: "#ff8a2a", highlight: "#f5c518", soft: "#fff1e0", paper: "#f6f3ee", text: "#111111", motif: "" },
   ocean: { name: "Ocean blue", description: "Blue, sky & charcoal", accent: "#2563eb", hover: "#1d4ed8", highlight: "#93c5fd", soft: "#eff6ff", paper: "#f3f6fa", text: "#ffffff", motif: "" },
@@ -10,6 +11,7 @@ export type StoreTheme = keyof typeof STORE_THEMES;
 export type StoreSettings = {
   storeName: string; headerSlogan: string; sidebarSlogan: string; legalName: string; abn: string; address: string;
   email: string; phone: string; openingHours: string;
+  deliveryOptions?: DeliveryOption[];
   shippingFlat: number; freeShippingThreshold: number | null; theme: StoreTheme;
 };
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
@@ -40,12 +42,14 @@ export function validateStoreSettings(input: unknown): StoreSettings {
   if (!cents(data.shippingFlat)) throw new Error("Shipping must be between $0 and $10,000 AUD, in whole cents.");
   if (data.freeShippingThreshold !== null && !cents(data.freeShippingThreshold)) throw new Error("Free shipping threshold must be between $0 and $10,000 AUD, or disabled.");
   if (typeof data.theme !== "string" || !Object.hasOwn(STORE_THEMES, data.theme)) throw new Error("Choose a supported store theme.");
-  return { storeName, headerSlogan, sidebarSlogan, legalName, abn, email, address: text("address", 500), phone, openingHours: text("openingHours", 300), shippingFlat: data.shippingFlat as number, freeShippingThreshold: data.freeShippingThreshold as number | null, theme: data.theme as StoreTheme };
+  return { ...(data.deliveryOptions === undefined ? {} : { deliveryOptions: validateDeliveryOptions(data.deliveryOptions) }), storeName, headerSlogan, sidebarSlogan, legalName, abn, email, address: text("address", 500), phone, openingHours: text("openingHours", 300), shippingFlat: data.shippingFlat as number, freeShippingThreshold: data.freeShippingThreshold as number | null, theme: data.theme as StoreTheme };
 }
-export function shippingCost(subtotal: number, settings: Pick<StoreSettings, "shippingFlat" | "freeShippingThreshold">) {
-  return settings.freeShippingThreshold !== null && subtotal >= settings.freeShippingThreshold ? 0 : settings.shippingFlat;
+export function shippingCost(subtotal: number, settings: Pick<StoreSettings, "shippingFlat" | "freeShippingThreshold" | "deliveryOptions">) {
+  const option = enabledDeliveryOptions(settings)[0];
+  return option ? deliveryCost(subtotal, option) : 0;
 }
 export function shippingMessage(settings: StoreSettings) {
+  if (settings.deliveryOptions !== undefined) { const options = enabledDeliveryOptions(settings); return options.length ? "Choose your delivery option at checkout" : "Online delivery currently unavailable"; }
   const dollars = (cents: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: cents % 100 ? 2 : 0 }).format(cents / 100);
   if (settings.shippingFlat === 0 || settings.freeShippingThreshold === 0) return "Free tracked shipping across Australia";
   return settings.freeShippingThreshold === null ? `Tracked shipping ${dollars(settings.shippingFlat)}` : `Free shipping on orders ${dollars(settings.freeShippingThreshold)}+`;

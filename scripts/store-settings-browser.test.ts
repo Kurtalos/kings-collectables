@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { brotliDecompressSync } from "node:zlib";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import { deliveryOptions } from "../src/lib/delivery";
 import { DEFAULT_STORE_SETTINGS, STORE_THEMES, type StoreSettings } from "../src/lib/store-settings";
 
 async function main() {
@@ -74,12 +75,13 @@ async function main() {
     await page.getByLabel("Sidebar slogan", { exact: true }).fill("Your independent card shop");
     await expect(page.locator(".admin-header-slogan")).toHaveText(custom.headerSlogan);
     await expect(page.locator(".admin-sidebar-slogan")).toHaveText(custom.sidebarSlogan);
-    await page.getByRole("radio", { name: /Halloween/ }).check();
+    await expect(page.getByRole("radio", { name: /Halloween/ })).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "Store theme", exact: true })).toHaveCount(0);
     assert.equal(await page.locator("html").getAttribute("data-store-theme"), "christmas");
-    await expect(page.locator(".settings-preview")).toContainText("HALLOWEEN");
+
     await page.getByRole("button", { name: "Save store settings", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("Store settings saved");
-    await expect(page.locator("html")).toHaveAttribute("data-store-theme", "halloween");
+    await expect(page.locator("html")).toHaveAttribute("data-store-theme", "christmas");
     await expect(page.locator(".admin-header-slogan")).toHaveText("Collect <great> memories.");
     await expect(page.locator(".admin-sidebar-slogan")).toHaveText("Your independent card shop");
     await expect(page.locator(".admin-header-slogan great")).toHaveCount(0);
@@ -92,7 +94,7 @@ async function main() {
     await page.reload({ waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Store", exact: true }).click();
     await page.getByRole("button", { name: "Store settings", exact: true }).click();
-    await expect(page.getByRole("radio", { name: /Halloween/ })).toBeChecked();
+    await expect(page.getByRole("radio", { name: /Halloween/ })).toHaveCount(0);
     await expect(page.getByLabel("Header slogan", { exact: true })).toHaveValue("Collect <great> memories.");
     await expect(page.getByLabel("Sidebar slogan", { exact: true })).toHaveValue("Your independent card shop");
     await page.getByLabel("Header slogan", { exact: true }).fill("");
@@ -109,7 +111,7 @@ async function main() {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth), "Maximum-length slogans do not overflow mobile");
     await json(await owner.put("/api/store-settings", { data: { ...custom, theme: "halloween", headerSlogan: "", sidebarSlogan: "" } }));
     await page.goto(base, { waitUntil: "networkidle" });
-    await expect(page.locator(".announcement-message")).toContainText("$150+");
+    await expect(page.locator(".announcement-message")).toContainText("Choose your delivery option at checkout");
     await expect(page.locator(".footer-brand")).toContainText(custom.abn);
     await expect(page.locator(".footer-brand")).toContainText("Perth WA 6000");
     await expect(page.locator(".brand").first()).toHaveAccessibleName(`${custom.storeName} home`);
@@ -119,7 +121,7 @@ async function main() {
     await page.goto(base + "/checkout", { waitUntil: "networkidle" });
     await expect(page.locator(".checkout-summary-totals")).toContainText("$12.00");
     await expect(page.locator(".checkout-summary-totals")).toContainText("$17.00");
-    await json(await owner.put("/api/store-settings", { data: { ...custom, freeShippingThreshold: null } }));
+    await json(await owner.put("/api/store-settings", { data: { ...custom, deliveryOptions: deliveryOptions(custom).map(o=>({...o,freeAbove:null})), freeShippingThreshold: null } }));
     await page.reload({ waitUntil: "networkidle" });
     await expect(page.locator(".checkout-summary-totals")).toContainText("$12.00");
     await expect(page.locator(".checkout-progress-hint")).toHaveCount(0);
@@ -130,7 +132,7 @@ async function main() {
       assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--wine").trim()), colors.accent);
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: horizontal section bar and sidebar tools, mobile order; slogans save/reload/hide, plain text and maximum length; owner/CSRF protection; validated persistent settings; pricing and acquisition costs unchanged; authoritative shipping, disabled/zero thresholds, stale quotes rejected, existing orders preserved; theme preview/save/reload; public business details; checkout totals; desktop/mobile without overflow or browser errors.");
+    console.log("PASS: horizontal section bar and sidebar tools, mobile order; slogans save/reload/hide, plain text and maximum length; owner/CSRF protection; validated persistent settings; pricing and acquisition costs unchanged; authoritative shipping, disabled/zero thresholds, stale quotes rejected, existing orders preserved; theme controls absent from Store settings, legacy theme compatibility; public business details; checkout totals; desktop/mobile without overflow or browser errors.");
   } finally {
     await browser?.close();
     // Restore only this test's settings key, never reset application data.

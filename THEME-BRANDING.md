@@ -6,7 +6,7 @@ This is an incremental update on top of the previous **Admin Workspaces + horizo
 
 ## Colours
 
-Choose a built-in preset, or **Follow Store settings** to retain the original Store settings theme as the source of truth. The original basic preset controls remain in Store settings for compatibility. If this editor selects its own preset or custom colours, an explanatory notice appears there; change/reset the overrides here to follow those basic controls again.
+Choose a built-in preset, or **Keep existing theme** to retain the previously saved base theme. Theme controls now live only in Theme & branding; Store settings contains business details, slogans and delivery services. The inherited base theme is retained for older installations/API clients, but it no longer has a duplicate editor in Store settings.
 
 Enable **Use custom colours** to start with the currently selected preset's colours. Six tokens are editable:
 
@@ -53,7 +53,7 @@ The representative desktop/mobile preview uses the actual Brand component plus s
 - **Save branding** applies only the branding record; it does not submit the Store settings form or modify shipping, prices, payments, inventory or acquisition costs.
 - **Discard changes** restores the last loaded/saved values after confirmation.
 - **Reload branding** fetches the current server record; unsaved changes prompt before discarding.
-- **Reset to defaults** resets the draft to the built-in logo/favicon, original typography/button shape and **Follow Store settings**. It does not change the live site until Save branding is pressed. Following Store settings retains its current preset, which need not be Kings classic.
+- **Reset to defaults** resets the draft to the built-in logo/favicon, original typography/button shape and **Keep existing theme**. It does not change the live site until Save branding is pressed. Keeping the existing theme retains the saved base preset, which need not be Kings classic.
 - Workspace section/tool navigation prompts before discarding dirty branding. A browser unload/reload also warns where supported. Do not rely on autosave: save/discard before using other top-bar links or leaving the app.
 - An optimistic revision check prevents another admin tab from silently overwriting newer branding. On conflict, copy any values you want to retain, reload and reapply/review before saving.
 

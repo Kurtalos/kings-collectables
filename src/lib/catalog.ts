@@ -1,3 +1,4 @@
+import { DELIVERY_KEY, legacyDelivery, type DeliverySnapshot } from "./delivery";
 import { db } from "@/db";
 import { products, categories, productCategories, storeMeta, orders, orderItems, imports } from "@/db/schema";
 import { eq, desc, asc, sql, inArray } from "drizzle-orm";
@@ -282,7 +283,10 @@ export async function getOrders(filter?: { email?: string; orderNumber?: string;
     : await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(200);
   if (!list.length) return [];
   const lines = await db.select().from(orderItems).where(inArray(orderItems.orderId, list.map(order => order.id)));
+  const deliveries = await db.select().from(storeMeta).where(inArray(storeMeta.key, list.map(order => DELIVERY_KEY(order.id))));
+  const byOrder = new Map(deliveries.map(row => [row.key, JSON.parse(row.value) as DeliverySnapshot]));
   return list.map(order => ({
+    delivery: (() => { if (order.channel === "pos") return null; const delivery = byOrder.get(DELIVERY_KEY(order.id)) ?? legacyDelivery(order.shipping); return includeCosts || order.status === "Shipped" ? delivery : { ...delivery, trackingNumber: "", trackingUrl: "", trackingUpdatedAt: null }; })(),
     ...order,
     createdAt: order.createdAt.toISOString(),
     paidAt: order.paidAt ? order.paidAt.toISOString() : null,

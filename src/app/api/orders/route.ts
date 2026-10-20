@@ -1,9 +1,9 @@
 import { readStoreSettings } from "@/lib/store-settings-server";
-import { shippingCost } from "@/lib/store-settings";
+import { chooseDelivery, deliveryCost, deliveryQuote, DELIVERY_KEY, legacyDelivery, trackingFields, type DeliverySnapshot } from "@/lib/delivery";
 import { dispatchRestockEvents } from "@/lib/restock";
 import { consumeItem, restoreItem } from "@/lib/inventory";
 import { db } from "@/db";
-import { products, orders, orderItems, addresses } from "@/db/schema";
+import { products, orders, orderItems, addresses, storeMeta } from "@/db/schema";
 import { and, eq, inArray, asc } from "drizzle-orm";
 import { validateAddress, composeAddress, MAX_ADDRESSES } from "@/lib/address";
 import { randomBytes } from "node:crypto";
@@ -72,26 +72,39 @@ export async function POST(request: Request) {
       let subtotal = 0;
       for (const card of stock) { const quantity = requested.get(card.id)!; if (card.quantity < quantity) throw new Error(`Only ${card.quantity} copies of ${card.name} are currently available.`); subtotal += card.price * quantity; }
       if (!Number.isSafeInteger(subtotal) || subtotal > 100000000) throw new Error("This order is too large for online reservation. Please contact the store.");
-      const shipping = shippingCost(subtotal, await readStoreSettings(tx));
+      const delivery = chooseDelivery(await readStoreSettings(tx), body.deliveryOptionId);
+      const shipping = deliveryCost(subtotal, delivery);
+      if (body.expectedDeliveryQuote !== undefined && body.expectedDeliveryQuote !== deliveryQuote(delivery, subtotal)) throw new Error("Delivery options have changed. Refresh checkout to review your selection before ordering.");
       if (body.expectedShipping !== undefined && body.expectedShipping !== shipping) throw new Error("Shipping rates have changed. Refresh checkout to review the current total before placing your order.");
       const orderNumber = `KC-${Date.now().toString(36).toUpperCase()}-${randomBytes(4).toString("hex").toUpperCase()}`;
       const [saved] = await tx.insert(orders).values({ orderNumber, customerId: shopper?.id || null, customerName: shopper?.name || customerName, email: shopper?.email || email, shippingAddress, addressId, recipientPhone, subtotal, shipping, total: subtotal + shipping }).returning();
+      const snapshot: DeliverySnapshot = { ...delivery, charged: shipping, trackingNumber: "", trackingUrl: "", trackingUpdatedAt: null };
+      await tx.insert(storeMeta).values({ key: DELIVERY_KEY(saved.id), value: JSON.stringify(snapshot) });
       const savedItems = await tx.insert(orderItems).values(stock.map(card => ({ orderId: saved.id, productId: card.id, cardName: card.name, variant: `${card.setCode.toUpperCase()} · ${card.condition} · ${card.finish}`, quantity: requested.get(card.id)!, unitPrice: card.price }))).returning();
       for (const item of savedItems) await consumeItem(tx, item);
-      return saved;
+      return { ...saved, delivery: snapshot };
     });
-    return Response.json({ order: { id: order.id, orderNumber: order.orderNumber, total: order.total, status: order.status, addressId } }, { status: 201 });
+    return Response.json({ order: { id: order.id, orderNumber: order.orderNumber, total: order.total, status: order.status, delivery: order.delivery, addressId } }, { status: 201 });
   } catch (error) { return apiError(error); }
 }
 export async function PATCH(request: Request) {
   try {
     await requireOwner(request);
     const body = await readBody(request);
-    if (!isUUID(body.id) || !["Awaiting payment", "Paid", "Packing", "Shipped", "Cancelled"].includes(String(body.status))) throw new Error("Choose a valid order and status.");
+    if (!isUUID(body.id) || (body.action !== "tracking" && !["Awaiting payment", "Paid", "Packing", "Shipped", "Cancelled"].includes(String(body.status)))) throw new Error("Choose a valid order and status.");
     if (String(body.status) === "Paid") throw new Error("Confirm the payment through the payments endpoint, not this one.");
-    await db.transaction(async tx => {
+    const delivery = await db.transaction(async tx => {
       const [order] = await tx.select().from(orders).where(eq(orders.id, String(body.id))).for("update");
       if (!order) throw new Error("Order not found.");
+      if (body.action === "tracking") {
+        if (order.channel === "pos" || !["Paid", "Packing", "Shipped"].includes(order.status)) throw new Error("Tracking can only be edited on paid, packing or shipped delivery orders.");
+        const [row] = await tx.select().from(storeMeta).where(eq(storeMeta.key, DELIVERY_KEY(order.id))).limit(1);
+        const delivery = row ? JSON.parse(row.value) as DeliverySnapshot : legacyDelivery(order.shipping);
+        if (!delivery.trackingEnabled) throw new Error("Tracking is not enabled for this order’s delivery option.");
+        const updated = { ...delivery, ...trackingFields(body) };
+        await tx.insert(storeMeta).values({ key: DELIVERY_KEY(order.id), value: JSON.stringify(updated) }).onConflictDoUpdate({ target: storeMeta.key, set: { value: JSON.stringify(updated) } });
+        return updated;
+      }
       if (order.status === "Cancelled" && body.status !== "Cancelled") throw new Error("Cancelled orders cannot be reopened. Stock has already been returned.");
       if (order.status === "Refunded") throw new Error("Refunded sales are closed. Stock and credit have already been returned.");
       if (order.status === "Shipped" && body.status === "Cancelled") throw new Error("A shipped order cannot be cancelled here. Arrange a return with the customer first.");
@@ -102,7 +115,7 @@ export async function PATCH(request: Request) {
       if (body.status === "Cancelled" && order.channel === "pos") throw new Error("Register sales are refunded at the register, not cancelled here.");
       await tx.update(orders).set({ status: String(body.status) }).where(eq(orders.id, order.id));
     });
-    await dispatchRestockEvents();
-    return Response.json({ ok: true });
+    if (body.action !== "tracking") await dispatchRestockEvents();
+    return Response.json({ ok: true, delivery });
   } catch (error) { return apiError(error); }
 }

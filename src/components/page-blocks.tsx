@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import { ArrowRight, Truck, BadgeCheck, Heart, Package } from "lucide-react";
 import { type ContentPage, type RichNode } from "@/lib/pages";
 import { SHOP_SETS } from "@/lib/store-config";
-import { money, type Card, type Collection } from "@/lib/types";
+import { type Card, type Collection } from "@/lib/types";
 import { shippingMessage } from "@/lib/store-settings";
+import { DeliveryRates } from "./delivery-rates";
 import { ProductCard } from "./product-card";
 import { HomepageCarousel } from "./homepage-carousel";
 import { StoreBusinessDetails } from "./store-business-details";
@@ -47,7 +48,7 @@ export function PageBlocks({ page, products, collections, renderCard, onContact,
         case "banner": return <section key={block.id} className="page-section page-banner">{heading}{body}{button}</section>;
         case "image": return <section key={block.id} className={`page-section page-image-text image-${block.alignment}`}><img loading="lazy" src={block.image} alt={block.alt}/><div>{heading}{body}{button}</div></section>;
         case "contact": return <section key={block.id} className="page-section page-contact">{heading}<StoreBusinessDetails/><button type="button" className="button button-primary" onClick={onContact}>Send the store a message</button></section>;
-        case "shipping": return <section key={block.id} className="page-section page-text">{heading}<p>Standard tracked delivery within Australia: <strong>{settings.shippingFlat === 0 ? "Free" : money(settings.shippingFlat)}</strong>.</p><p>{shippingMessage(settings)}.</p></section>;
+        case "shipping": return <section key={block.id} className="page-section page-text">{heading}<DeliveryRates/><p>Choose an available delivery option at checkout.</p></section>;
         case "benefits": return <section key={block.id} className="store-benefits page-section"><span><Truck size={24}/>{shippingMessage(settings)}</span><span><BadgeCheck size={24}/>Condition you can trust</span><span><Package size={24}/>Carefully packed</span><span><Heart size={24}/>Independent & Australian</span></section>;
         case "collections": {
           const groups = collections.filter(c => ["all", "featured"].includes(block.source) || c.slug === block.source).slice(0, block.limit);
